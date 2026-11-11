@@ -40,6 +40,12 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(merge_env("HOST=127.0.0.1\nEMPTY=\n", json.dumps({"PASSWORD": secret})),
                          {"HOST": "127.0.0.1", "EMPTY": "", "PASSWORD": secret})
 
+    def test_legacy_key_policy_flags_are_public_literals(self):
+        self.assertEqual(merge_env("FASTWRITE_ALLOW_LEGACY_API_KEYS=false", "{}"),
+            {"FASTWRITE_ALLOW_LEGACY_API_KEYS": "false"})
+        with self.assertRaises(ValueError):
+            merge_env("FASTWRITE_ALLOW_LEGACY_API_KEYS=accidental-credential", "{}")
+
     def test_bad_configuration_is_rejected(self):
         for public, private in [
             ("PORT=1\nPORT=2", "{}"), ("HOST=x", '{"HOST":"y"}'),

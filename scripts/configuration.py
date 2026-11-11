@@ -49,7 +49,10 @@ def parse_env(text):
 
 def merge_env(public, secret):
     public = parse_env(public)
-    if any(re.search(r"(?:SECRET|PASSWORD|PRIVATE_KEY|API_KEYS?|TOKEN)$", key) for key in public):
+    def sensitive(key, value):
+        policy = re.search(r"_ALLOW_LEGACY_[A-Z_]*(?:KEY|KEYS)$", key) and value in {"true", "false"}
+        return not policy and re.search(r"(?:SECRET|PASSWORD|PRIVATE_KEY|API_KEYS?|TOKEN)$", key)
+    if any(sensitive(key, value) for key, value in public.items()):
         raise ValueError("sensitive environment names must use runtime-secrets")
     secret = validate_values(json_object(secret))
     if public.keys() & secret.keys():

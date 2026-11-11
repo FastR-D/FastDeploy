@@ -98,8 +98,9 @@ def publish(config, release, name):
     for source in (target / "assets").rglob("*"):
         destination = assets / source.relative_to(target / "assets")
         if source.is_dir():
-            destination.mkdir(exist_ok=True, parents=True)
-            destination.chmod(0o755)
+            if not destination.exists():
+                destination.mkdir(parents=True)
+                destination.chmod(0o755)
         else:
             if destination.exists():
                 if hashlib.sha256(destination.read_bytes()).digest() != hashlib.sha256(source.read_bytes()).digest():

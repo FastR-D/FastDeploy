@@ -441,14 +441,14 @@
     "legacy_app": "figure",
     "unit": "fastdeploy-fastfigure.service",
     "command": [
-      "/usr/bin/node",
+      "/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun",
       "server-dist/server.mjs"
     ],
     "services": [
       {
         "unit": "fastdeploy-fastfigure.service",
         "command": [
-          "/usr/bin/node",
+          "/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun",
           "server-dist/server.mjs"
         ]
       }
@@ -477,9 +477,9 @@
     },
     "shared_paths": [],
     "runtime_check": [
-      "/usr/bin/node",
+      "/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun",
       "-e",
-      "if (Number(process.versions.node.split(\".\")[0]) !== 24) process.exit(1)"
+      "if (Bun.version !== \"1.4.0\") process.exit(1); const {DatabaseSync}=require(\"node:sqlite\"); const db=new DatabaseSync(\":memory:\"); db.exec(\"CREATE TABLE runtime_check (id INTEGER)\"); db.close()"
     ],
     "create_paths": [
       "/home/dev/fastfigure-shared/components"

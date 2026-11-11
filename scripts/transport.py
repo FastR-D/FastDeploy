@@ -49,7 +49,7 @@ def main():
         try:
             with archive.open("rb") as stream:
                 subprocess.run(ssh + [f"umask 077; mkdir -p {remote} && tar -xzf - -C {remote}"],
-                               stdin=stream, check=True, timeout=300)
+                               stdin=stream, check=True, timeout=600)
             subprocess.run(ssh + [f"python3 {remote}/remote.py {remote}"], check=True, timeout=600)
         finally:
             subprocess.run(ssh + [f"rm -rf -- {remote}"], timeout=30, check=False,

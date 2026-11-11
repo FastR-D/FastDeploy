@@ -3,16 +3,525 @@
     "repository": "FastR-D/FastResearch",
     "legacy_app": "research",
     "unit": "fastresearch.service",
-    "command": ["/usr/bin/node", "server/index.mjs"],
+    "command": [
+      "/usr/bin/node",
+      "server/index.mjs"
+    ],
     "health_url": "http://127.0.0.1:8787/api/health",
-    "required_files": ["server/index.mjs", "dist/index.html", "node_modules/@fastrd/fastcas/package.json"],
-    "required_env": ["HOST", "PORT", "FASTRESEARCH_PUBLIC_URL", "FASTRESEARCH_DATA_DIR", "FASTRESEARCH_JWT_SECRET"],
+    "required_files": [
+      "server/index.mjs",
+      "dist/index.html",
+      "node_modules/@fastrd/fastcas/package.json"
+    ],
+    "required_env": [
+      "HOST",
+      "PORT",
+      "FASTRESEARCH_PUBLIC_URL",
+      "FASTRESEARCH_DATA_DIR",
+      "FASTRESEARCH_JWT_SECRET"
+    ],
     "fixed_env": {
       "HOST": "127.0.0.1",
       "PORT": "8787",
       "FASTRESEARCH_DATA_DIR": "/home/dev/FastResearch/data"
     },
-    "shared_paths": ["/home/dev/FastResearch/data"],
-    "runtime_check": ["/usr/bin/node", "-e", "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(1)"]
+    "shared_paths": [
+      "/home/dev/FastResearch/data"
+    ],
+    "runtime_check": [
+      "/usr/bin/node",
+      "-e",
+      "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(1)"
+    ]
+  },
+  "fastnews": {
+    "repository": "FastR-D/FastNews",
+    "legacy_app": "news",
+    "unit": "fastnews.service",
+    "command": [
+      "/home/dev/FastNews/.venv/bin/python",
+      "server/serve.py"
+    ],
+    "services": [
+      {
+        "unit": "fastnews.service",
+        "command": [
+          "/home/dev/FastNews/.venv/bin/python",
+          "server/serve.py"
+        ]
+      }
+    ],
+    "health_url": "http://127.0.0.1:8788/api/health",
+    "artifact_roots": [
+      "server",
+      "vendor"
+    ],
+    "required_files": [
+      "server/serve.py",
+      "server/assets/account.html",
+      "vendor/werkzeug/__init__.py"
+    ],
+    "required_env": [
+      "FASTNEWS_HOST",
+      "FASTNEWS_PORT",
+      "FASTNEWS_ROOT",
+      "FASTNEWS_DATA_DIR"
+    ],
+    "fixed_env": {
+      "FASTNEWS_HOST": "127.0.0.1",
+      "FASTNEWS_PORT": "8788",
+      "FASTNEWS_ROOT": "/home/dev/FastNews",
+      "FASTNEWS_DATA_DIR": "/home/dev/FastNews/.fastnews-data"
+    },
+    "shared_paths": [
+      "/home/dev/FastNews"
+    ],
+    "runtime_check": [
+      "/home/dev/FastNews/.venv/bin/python",
+      "-c",
+      "import sys; assert sys.version_info[:2] == (3,13)"
+    ],
+    "release_env": {
+      "PYTHONPATH": "{release}/vendor",
+      "FASTNEWS_CODE_ROOT": "{release}/server"
+    }
+  },
+  "fastcas": {
+    "repository": "FastR-D/FastCAS",
+    "legacy_app": "cas",
+    "unit": "fastcas.service",
+    "command": [
+      "{release}/bin/fastcas",
+      "serve"
+    ],
+    "services": [
+      {
+        "unit": "fastcas.service",
+        "command": [
+          "{release}/bin/fastcas",
+          "serve"
+        ]
+      }
+    ],
+    "health_url": "http://127.0.0.1:8900/health/ready",
+    "artifact_roots": [
+      "bin",
+      "web"
+    ],
+    "required_files": [
+      "bin/fastcas",
+      "web/dist/index.html"
+    ],
+    "required_env": [
+      "FASTCAS_LISTEN"
+    ],
+    "fixed_env": {
+      "FASTCAS_LISTEN": "127.0.0.1:8900"
+    },
+    "shared_paths": [
+      "/home/dev/FastCAS/.local"
+    ],
+    "runtime_check": [
+      "/usr/bin/python3",
+      "-c",
+      "import sys; assert sys.version_info >= (3,12)"
+    ],
+    "release_env": {
+      "FASTCAS_UI_DIR": "{release}/web/dist"
+    }
+  },
+  "fasttask": {
+    "repository": "FastR-D/FastTask",
+    "legacy_app": "task",
+    "unit": "fasttask.service",
+    "command": [
+      "{release}/bin/fasttask",
+      "serve",
+      "--with-worker",
+      "--with-scheduler"
+    ],
+    "services": [
+      {
+        "unit": "fasttask.service",
+        "command": [
+          "{release}/bin/fasttask",
+          "serve",
+          "--with-worker",
+          "--with-scheduler"
+        ]
+      }
+    ],
+    "health_url": "http://127.0.0.1:10000/health/ready",
+    "artifact_roots": [
+      "bin",
+      "web",
+      "sidecar"
+    ],
+    "required_files": [
+      "bin/fasttask",
+      "web/dist/index.html",
+      "sidecar/dist/host.mjs",
+      "web/node_modules/libfx/package.json"
+    ],
+    "required_env": [
+      "FASTTASK_LISTEN",
+      "FASTTASK_PORT",
+      "FASTTASK_DATABASE"
+    ],
+    "fixed_env": {
+      "FASTTASK_LISTEN": "127.0.0.1",
+      "FASTTASK_PORT": "10000",
+      "FASTTASK_DATABASE": "/home/dev/FastTask/data/fasttask.db"
+    },
+    "shared_paths": [
+      "/home/dev/FastTask/data"
+    ],
+    "runtime_check": [
+      "/usr/bin/python3",
+      "-c",
+      "import sys; assert sys.version_info >= (3,12)"
+    ],
+    "release_env": {
+      "FASTTASK_WEB_DIST": "{release}/web/dist",
+      "FASTTASK_SIDECAR_ENTRY": "{release}/sidecar/dist/host.mjs",
+      "FASTTASK_SIDECAR_NODE_PATH": "/usr/bin/node"
+    }
+  },
+  "fastread": {
+    "repository": "FastR-D/FastRead",
+    "legacy_app": "read",
+    "unit": "fastdeploy-fastread-api.service",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "uvicorn",
+      "main:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8584",
+      "--no-proxy-headers"
+    ],
+    "services": [
+      {
+        "unit": "fastdeploy-fastread-api.service",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "uvicorn",
+          "main:app",
+          "--host",
+          "127.0.0.1",
+          "--port",
+          "8584",
+          "--no-proxy-headers"
+        ],
+        "cwd": "{release}/backend"
+      },
+      {
+        "unit": "fastdeploy-fastread-worker.service",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "app.web.worker",
+          "--concurrency",
+          "2"
+        ],
+        "cwd": "{release}/backend"
+      }
+    ],
+    "health_url": "http://127.0.0.1:8584/api/health",
+    "artifact_roots": [
+      "backend",
+      "fastread-frontend",
+      "vendor"
+    ],
+    "required_files": [
+      "backend/main.py",
+      "fastread-frontend/dist/index.html",
+      "fastread-frontend/dist/vendor/pdfjs/pdf.worker.js",
+      "vendor/uvicorn/__init__.py"
+    ],
+    "required_env": [
+      "FASTREAD_WEB_ROOT",
+      "FASTREAD_DATA_ROOT"
+    ],
+    "fixed_env": {
+      "FASTREAD_WEB_ROOT": "/home/dev/fastread-web-shared/data",
+      "FASTREAD_DATA_ROOT": "/home/dev/fastread-web-shared/compatibility"
+    },
+    "shared_paths": [
+      "/home/dev/fastread-web-shared/data",
+      "/home/dev/fastread-web-shared/compatibility"
+    ],
+    "runtime_check": [
+      "/usr/bin/python3",
+      "-c",
+      "import sys; assert sys.version_info >= (3,12)"
+    ],
+    "system_legacy": "fastread",
+    "release_env": {
+      "PYTHONPATH": "{release}/vendor",
+      "FASTREAD_WEB_DIST": "{release}/fastread-frontend/dist"
+    },
+    "public_static": {
+      "root": "/var/www/fastread-current",
+      "source": "fastread-frontend/dist"
+    }
+  },
+  "fastwrite": {
+    "repository": "FastR-D/FastWrite",
+    "legacy_app": "write",
+    "unit": "fastdeploy-fastwrite.service",
+    "command": [
+      "/home/dev/fastwrite-shared/runtime/bun-linux-x64/bun",
+      "apps/server/dist/server.js"
+    ],
+    "services": [
+      {
+        "unit": "fastdeploy-fastwrite.service",
+        "command": [
+          "/home/dev/fastwrite-shared/runtime/bun-linux-x64/bun",
+          "apps/server/dist/server.js"
+        ]
+      }
+    ],
+    "health_url": "http://127.0.0.1:3003/api/health",
+    "artifact_roots": [
+      "apps",
+      "node_modules",
+      "package.json"
+    ],
+    "required_files": [
+      "apps/server/dist/server.js",
+      "apps/web/dist/index.html",
+      "node_modules/pdfjs-dist/package.json"
+    ],
+    "required_env": [
+      "FASTWRITE_PORT",
+      "FASTWRITE_DATA_DIR"
+    ],
+    "fixed_env": {
+      "FASTWRITE_PORT": "3003",
+      "FASTWRITE_DATA_DIR": "/home/dev/fastwrite-shared/data"
+    },
+    "shared_paths": [
+      "/home/dev/fastwrite-shared/data"
+    ],
+    "runtime_check": [
+      "/home/dev/fastwrite-shared/runtime/bun-linux-x64/bun",
+      "-e",
+      "if (Bun.version !== \"1.4.0\") process.exit(1)"
+    ],
+    "system_legacy": "fastwrite",
+    "release_env": {
+      "FASTWRITE_WEB_DIR": "{release}/apps/web/dist",
+      "FASTWRITE_SKILLS_DIR": "{release}/apps/server/dist/skills",
+      "FASTWRITE_TEMPLATE_DIR": "{release}/apps/server/dist/templates/bundled"
+    }
+  },
+  "fastinsight": {
+    "repository": "FastR-D/FastInsight",
+    "legacy_app": "insight",
+    "unit": "fastinsight-feishu.service",
+    "command": [
+      "/usr/bin/python3",
+      "feishu_bot.py"
+    ],
+    "services": [
+      {
+        "unit": "fastinsight-feishu.service",
+        "command": [
+          "/usr/bin/python3",
+          "feishu_bot.py"
+        ]
+      }
+    ],
+    "health_url": null,
+    "artifact_roots": [
+      "fastinsight",
+      "feishu_bot.py",
+      "scripts",
+      "assets",
+      "vendor"
+    ],
+    "required_files": [
+      "feishu_bot.py",
+      "fastinsight/bot.py",
+      "vendor/lark_oapi/__init__.py"
+    ],
+    "required_env": [
+      "FASTINSIGHT_STATE_DIR",
+      "FASTINSIGHT_ROSTER"
+    ],
+    "fixed_env": {
+      "FASTINSIGHT_STATE_DIR": "/home/dev/fastinsight",
+      "FASTINSIGHT_ROSTER": "/home/dev/fastinsight/assets/colleagues.yaml"
+    },
+    "shared_paths": [
+      "/home/dev/fastinsight"
+    ],
+    "runtime_check": [
+      "/usr/bin/python3",
+      "-c",
+      "import sys; assert sys.version_info >= (3,12)"
+    ],
+    "release_env": {
+      "PYTHONPATH": "{release}/vendor",
+      "PYTHONUNBUFFERED": "1"
+    },
+    "transient_legacy": true
+  },
+  "fastlabs": {
+    "repository": "FastR-D/FastLabs",
+    "legacy_app": "labs",
+    "unit": "fastdeploy-fastlabs.service",
+    "command": [
+      "/usr/bin/python3",
+      "server.py",
+      "--port",
+      "8789",
+      "--data-dir",
+      "/home/dev/fastlabs-shared/data"
+    ],
+    "services": [
+      {
+        "unit": "fastdeploy-fastlabs.service",
+        "command": [
+          "/usr/bin/python3",
+          "server.py",
+          "--port",
+          "8789",
+          "--data-dir",
+          "/home/dev/fastlabs-shared/data"
+        ]
+      }
+    ],
+    "health_url": "http://127.0.0.1:8789/api/health",
+    "artifact_roots": [
+      "server.py",
+      "agent_adapter.py",
+      "fastcas_pairing.py",
+      "feishu_gateway.py",
+      "feishu_help.py",
+      "web",
+      "skills",
+      "schemas",
+      "vendor"
+    ],
+    "required_files": [
+      "server.py",
+      "web/index.html",
+      "vendor/lark_channel/__init__.py"
+    ],
+    "required_env": [],
+    "fixed_env": {},
+    "shared_paths": [],
+    "runtime_check": [
+      "/usr/bin/python3",
+      "-c",
+      "import sys; assert sys.version_info >= (3,12)"
+    ],
+    "create_paths": [
+      "/home/dev/fastlabs-shared/data"
+    ],
+    "release_env": {
+      "PYTHONPATH": "{release}/vendor",
+      "PYTHONUNBUFFERED": "1"
+    }
+  },
+  "fastfigure": {
+    "repository": "FastR-D/FastFigure",
+    "legacy_app": "figure",
+    "unit": "fastdeploy-fastfigure.service",
+    "command": [
+      "/usr/bin/node",
+      "server-dist/server.mjs"
+    ],
+    "services": [
+      {
+        "unit": "fastdeploy-fastfigure.service",
+        "command": [
+          "/usr/bin/node",
+          "server-dist/server.mjs"
+        ]
+      }
+    ],
+    "health_url": "http://127.0.0.1:5178/api/health",
+    "artifact_roots": [
+      "server-dist",
+      "dist",
+      "node_modules",
+      "package.json"
+    ],
+    "required_files": [
+      "server-dist/server.mjs",
+      "dist/index.html",
+      "node_modules/zod/package.json"
+    ],
+    "required_env": [
+      "HOST",
+      "PORT",
+      "FASTFIGURE_LIBRARY_DIR"
+    ],
+    "fixed_env": {
+      "HOST": "127.0.0.1",
+      "PORT": "5178",
+      "FASTFIGURE_LIBRARY_DIR": "/home/dev/fastfigure-shared/components"
+    },
+    "shared_paths": [],
+    "runtime_check": [
+      "/usr/bin/node",
+      "-e",
+      "if (Number(process.versions.node.split(\".\")[0]) !== 24) process.exit(1)"
+    ],
+    "create_paths": [
+      "/home/dev/fastfigure-shared/components"
+    ]
+  },
+  "fastui": {
+    "repository": "FastR-D/FastUI",
+    "legacy_app": "ui",
+    "unit": "fastdeploy-fastui.service",
+    "command": [
+      "/usr/bin/python3",
+      "-m",
+      "http.server",
+      "8792",
+      "--bind",
+      "127.0.0.1",
+      "--directory",
+      "docs/dist"
+    ],
+    "services": [
+      {
+        "unit": "fastdeploy-fastui.service",
+        "command": [
+          "/usr/bin/python3",
+          "-m",
+          "http.server",
+          "8792",
+          "--bind",
+          "127.0.0.1",
+          "--directory",
+          "docs/dist"
+        ]
+      }
+    ],
+    "health_url": "http://127.0.0.1:8792/#http200",
+    "artifact_roots": [
+      "docs"
+    ],
+    "required_files": [
+      "docs/dist/index.html"
+    ],
+    "required_env": [],
+    "fixed_env": {},
+    "shared_paths": [],
+    "runtime_check": [
+      "/usr/bin/python3",
+      "-c",
+      "import sys; assert sys.version_info >= (3,12)"
+    ]
   }
 }

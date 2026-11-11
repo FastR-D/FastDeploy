@@ -50,8 +50,9 @@ def switch_link(path, target):
     os.replace(temporary, path)
 
 
-def extract_archive(archive, destination):
+def extract_archive(archive, destination, allowed_roots=None):
     """Reject links, devices, traversal, configuration and writable application data."""
+    allowed_roots = set(allowed_roots or ["server", "dist", "node_modules", "package.json", "package-lock.json"])
     seen = set()
     total = 0
     with tarfile.open(archive, "r:gz") as tar:
@@ -68,7 +69,7 @@ def extract_archive(archive, destination):
             if any(part in {".git", ".ssh", ".fastdeploy"} or part == ".env"
                    or part.startswith(".env.") for part in path.parts):
                 raise ValueError("archive contains private configuration")
-            if path.parts[0] not in {"server", "dist", "node_modules", "package.json", "package-lock.json"}:
+            if path.parts[0] not in allowed_roots:
                 raise ValueError("file outside application artifact allowlist")
             total += member.size
             if total > 2 * 1024**3:
@@ -95,6 +96,13 @@ class Systemd:
         subprocess.run(["systemctl", "--user", *args], env=self.env, check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=90)
 
+    def state(self, operation, unit):
+        result = subprocess.run(["systemctl", "--user", operation, unit], env=self.env,
+            capture_output=True, text=True, timeout=10)
+        if operation == "is-active" and result.stdout.strip() in {"activating", "deactivating", "reloading"}:
+            raise DeployError("service is transitioning; retry deployment later")
+        return result.returncode == 0
+
     def legacy_active(self):
         for unit in ["fast-tag-deploy.timer", "fast-tag-deploy.service"]:
             result = subprocess.run(["systemctl", "--user", "is-active", unit], env=self.env,
@@ -116,8 +124,10 @@ def health(url, attempts=30):
         try:
             with opener.open(url, timeout=3) as response:
                 if response.status == 200:
+                    if url.endswith("#http200"):
+                        return
                     body = json.load(response)
-                    if isinstance(body, dict) and (body.get("ok") is True or body.get("status") in {"ok", "healthy"}):
+                    if isinstance(body, dict) and (body.get("ok") is True or body.get("ready") is True or body.get("status") in {"ok", "healthy", "ready"}):
                         return
         except (OSError, ValueError):
             pass
@@ -145,6 +155,66 @@ class Deployment:
         self.controller = controller or Systemd()
         self.check_health = check_health
         self.watermark = self.root / "fastdeploy-run-watermark"
+        self.services = self.profile.get("services")
+
+    def ready(self, verify_services=True):
+        if self.profile.get("health_url"):
+            self.check_health(self.profile["health_url"])
+            if verify_services and self.services:
+                for service in self.services:
+                    self.controller.run("is-active", service["unit"])
+        else:
+            # A bot has no HTTP endpoint. Require a stable process, without sending messages.
+            for _ in range(10):
+                for service in self.services:
+                    self.controller.run("is-active", service["unit"])
+                time.sleep(1)
+
+    def unit_path(self, service):
+        return self.home / ".config/systemd/user" / service["unit"]
+
+    def service_dropin(self, service):
+        return self.unit_path(service).with_name(service["unit"] + ".d") / "zzzz-fastdeploy.conf"
+
+    def quiesce_transient(self):
+        if not self.profile.get("transient_legacy"):
+            return
+        for service in self.services:
+            path = Path(f"/run/user/{os.getuid()}/systemd/transient") / service["unit"]
+            if path.exists():
+                self.controller.run("stop", service["unit"])
+                # A transient definition has higher priority than a persistent unit.
+                # Wait for systemd to collect it before installing its replacement.
+                for _ in range(30):
+                    if not path.exists():
+                        break
+                    time.sleep(0.1)
+                if path.exists():
+                    raise DeployError("legacy transient unit was not collected")
+
+    def install_services(self):
+        for service in self.services:
+            path = self.unit_path(service)
+            if not path.exists():
+                atomic_write(path, ("[Unit]\nDescription=FastDeploy " + self.app + "\nAfter=network.target\n"
+                    "[Service]\nType=simple\nRestart=on-failure\nRestartSec=5\nTimeoutStopSec=60\nUMask=0077\n"
+                    "NoNewPrivileges=true\n[Install]\nWantedBy=default.target\n").encode())
+            dropin = ("[Service]\nEnvironment=\nEnvironmentFile=\nPassEnvironment=\n"
+                f"WorkingDirectory={self.current}\nExecStart=\n"
+                f"ExecStart=/usr/bin/python3 {self.current}/.fastdeploy/launch.py {service['unit']}\n")
+            atomic_write(self.service_dropin(service), dropin.encode())
+
+    def restart_services(self):
+        for service in self.services:
+            self.controller.restart(service["unit"])
+            self.controller.run("enable", service["unit"])
+
+    def system_helper(self, operation):
+        app = self.profile.get("system_legacy")
+        if app:
+            subprocess.run(["sudo", "-n", "/usr/local/sbin/fastdeploy-system-services", operation, app],
+                check=True, timeout=120, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 
     def lock(self):
         path = self.home / "ci-releases/locks" / (self.profile["legacy_app"] + ".lock")
@@ -170,11 +240,31 @@ class Deployment:
             raise DeployError("legacy poller still owns this project; run migrate_legacy.py first")
         if self.current.exists() and not self.current.is_symlink():
             raise DeployError("current must be a symlink")
+        self.system_helper("check")
+        for path in self.profile.get("create_paths", []):
+            Path(path).mkdir(parents=True, exist_ok=True, mode=0o700)
         for path in self.profile["shared_paths"]:
             if not Path(path).is_dir():
                 raise DeployError("required shared data directory is missing")
 
     def snapshot(self):
+        if self.services:
+            states = []
+            for service in self.services:
+                path, dropin = self.unit_path(service), self.service_dropin(service)
+                transient = Path(f"/run/user/{os.getuid()}/systemd/transient") / service["unit"]
+                original = path if path.exists() else transient
+                states.append({"unit": service["unit"],
+                    "base": base64.b64encode(original.read_bytes()).decode() if original.exists() else None,
+                    "dropin": base64.b64encode(dropin.read_bytes()).decode() if dropin.exists() else None,
+                    "active": self.controller.state("is-active", service["unit"]),
+                    "enabled": self.controller.state("is-enabled", service["unit"])})
+            snapshot = {"current": os.readlink(self.current) if self.current.is_symlink() else None,
+                "services": states, "active": json.loads(self.active.read_text()) if self.active.exists() else None}
+            if self.profile.get("public_static"):
+                from publication import snapshot_public
+                snapshot["public"] = snapshot_public(self.profile["public_static"])
+            return snapshot
         return {
             "current": os.readlink(self.current) if self.current.is_symlink() else None,
             "dropin": base64.b64encode(self.dropin.read_bytes()).decode() if self.dropin.exists() else None,
@@ -182,6 +272,8 @@ class Deployment:
         }
 
     def restore(self, snapshot):
+        if "services" in snapshot:
+            return self.restore_services(snapshot)
         if snapshot["current"] is None:
             self.current.unlink(missing_ok=True)
         else:
@@ -192,6 +284,43 @@ class Deployment:
             atomic_write(self.dropin, base64.b64decode(snapshot["dropin"]))
         self.controller.restart(self.profile["unit"])
         self.check_health(self.profile["health_url"])
+        if snapshot["active"] is None:
+            self.active.unlink(missing_ok=True)
+        else:
+            write_json(self.active, snapshot["active"])
+
+    def restore_services(self, snapshot):
+        for service in self.services:
+            if self.controller.state("is-active", service["unit"]):
+                self.controller.run("stop", service["unit"])
+        if snapshot["current"] is None:
+            self.current.unlink(missing_ok=True)
+        else:
+            switch_link(self.current, snapshot["current"])
+        for state in snapshot["services"]:
+            service = {"unit": state["unit"]}
+            if self.unit_path(service).exists():
+                self.controller.run("disable", state["unit"])
+            for path, value in [(self.unit_path(service), state["base"]), (self.service_dropin(service), state["dropin"])]:
+                if value is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    atomic_write(path, base64.b64decode(value))
+        self.controller.run("daemon-reload")
+        for state in snapshot["services"]:
+            if state["enabled"]:
+                self.controller.run("enable", state["unit"])
+            if state["active"]:
+                self.controller.restart(state["unit"])
+        if self.profile.get("system_legacy") and snapshot["active"] is None:
+            self.system_helper("restore")
+        elif self.profile.get("system_legacy"):
+            self.system_helper("quiesce")
+        if "public" in snapshot:
+            from publication import restore_public
+            restore_public(self.profile["public_static"], snapshot["public"])
+        if snapshot["active"] is not None or any(state["active"] for state in snapshot["services"]) or self.profile.get("system_legacy"):
+            self.ready(verify_services=not (self.profile.get("system_legacy") and snapshot["active"] is None))
         if snapshot["active"] is None:
             self.active.unlink(missing_ok=True)
         else:
@@ -227,7 +356,7 @@ class Deployment:
             if request["run_id"] < active["run_id"]:
                 raise DeployError("older workflow run cannot replace a newer deployment")
             if all(active.get(key) == value for key, value in identity.items()):
-                self.check_health(self.profile["health_url"])
+                self.ready()
                 print("Release already active and healthy")
                 return
             if request["run_id"] == active["run_id"]:
@@ -241,7 +370,7 @@ class Deployment:
             # A failed attempt remains available for diagnosis; never overwrite it.
             raise DeployError("release directory exists; use a new workflow run")
         destination.mkdir(mode=0o700)
-        extract_archive(archive, destination)
+        extract_archive(archive, destination, self.profile.get("artifact_roots"))
         for path in self.profile["required_files"]:
             if not (destination / path).is_file():
                 raise DeployError("artifact missing a required application file")
@@ -250,7 +379,16 @@ class Deployment:
         settings = destination / ".fastdeploy"
         settings.mkdir(mode=0o700)
         shutil.copyfile(bundle / "launch.py", settings / "launch.py")
-        write_json(settings / "runtime.json", {"env": request["env"], "command": self.profile["command"]})
+        runtime_env = dict(request["env"])
+        # Expand only trusted profile templates, never user-provided values or Secrets.
+        runtime_env.update({key: value.replace("{release}", str(destination)) for key, value in self.profile.get("release_env", {}).items()})
+        runtime = {"env": runtime_env, "command": self.profile.get("command", [])}
+        if self.services:
+            runtime["services"] = {service["unit"]: {
+                "command": [value.replace("{release}", str(destination)) for value in service["command"]],
+                "cwd": service.get("cwd", "{release}").replace("{release}", str(destination))
+            } for service in self.services}
+        write_json(settings / "runtime.json", runtime)
         write_json(settings / "previous.json", previous)
         identity["release"] = name
         write_json(settings / "release.json", identity)
@@ -259,10 +397,21 @@ class Deployment:
                   f"ExecStart=/usr/bin/python3 {self.current}/.fastdeploy/launch.py\n")
         write_json(self.transaction, previous)
         try:
-            atomic_write(self.dropin, dropin.encode())
+            if self.services:
+                self.quiesce_transient()
+                self.install_services()
+            else:
+                atomic_write(self.dropin, dropin.encode())
             switch_link(self.current, destination)
-            self.controller.restart(self.profile["unit"])
-            self.check_health(self.profile["health_url"])
+            if self.services:
+                self.system_helper("quiesce")
+                self.restart_services()
+            else:
+                self.controller.restart(self.profile["unit"])
+            self.ready()
+            if self.profile.get("public_static"):
+                from publication import publish
+                publish(self.profile["public_static"], destination, name)
             write_json(self.active, identity)
             atomic_write(self.watermark, str(request["run_id"]).encode())
             self.transaction.unlink()

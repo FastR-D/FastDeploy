@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provision org SSH and FastResearch repository Secrets without printing values."""
+"""Provision org SSH and project repository Secrets without printing values."""
 import argparse
 import json
 import os
@@ -12,7 +12,7 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 ORG = "FastR-D"
 REPOSITORY = ORG + "/FastResearch"
-SSH_REPOSITORIES = "FastResearch,FastNews,FastWrite,FastRead,FastTask,FastCAS,FastInsight,FastLabs"
+SSH_REPOSITORIES = "FastResearch,FastNews,FastWrite,FastRead,FastTask,FastCAS,FastInsight,FastLabs,FastFigure,FastUI"
 SSH_NAMES = {"FASTRD_SSH_HOST", "FASTRD_SSH_PORT", "FASTRD_SSH_USER",
              "FASTRD_SSH_PRIVATE_KEY", "FASTRD_SSH_KNOWN_HOSTS"}
 
@@ -70,7 +70,23 @@ def ssh_values(alias, key_file=None):
     return values
 
 
-def project_values(alias, names):
+ENV_FILES = {
+    "FastNews": "/home/dev/FastNews/.env",
+    "FastCAS": "/home/dev/FastCAS/.local/fastcas.env",
+    "FastTask": "/home/dev/FastTask/.env",
+    "FastRead": "/home/dev/fastread-web-shared/web.env",
+    "FastWrite": "/home/dev/fastwrite-shared/fastwrite.env",
+    "FastInsight": "/home/dev/fastinsight/.env",
+}
+
+
+def project_values(alias, names, env_file=None):
+    if env_file is not None:
+        code = ("const fs=require('node:fs'),{parseEnv}=require('node:util');const env=parseEnv(fs.readFileSync("
+                + json.dumps(env_file) + ", 'utf8'));const names=" + json.dumps(names)
+                + ";process.stdout.write(JSON.stringify(Object.fromEntries(names.map(k=>[k,env[k]??'']))));")
+        return json.loads(capture(["ssh", "-o", "BatchMode=yes", alias, shlex.join(["/usr/bin/node", "-e", code])]))
+
     # Node's env-file parser matches the current npm start entry point. stdout is
     # captured in memory and never emitted; no secrets are interpolated into code.
     code = "const names=" + json.dumps(names) + ";const result=Object.fromEntries(names.map(k=>[k,process.env[k]??'']));"
@@ -92,6 +108,7 @@ def set_secret(name, value, scope):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--repository", default=REPOSITORY, help="Calling repository, e.g. FastR-D/FastRead")
     parser.add_argument("--workflow", type=Path,
                         default=ROOT.parent / "FastResearch/.github/workflows/tag-ci.yml")
     parser.add_argument("--ssh-alias", default="fastrd")
@@ -101,15 +118,15 @@ def main():
     parser.add_argument("--overwrite", action="store_true", help="Explicitly permit replacing existing same-name secrets")
     args = parser.parse_args()
     names = project_names(args.workflow)
-    if not names:
-        raise RuntimeError("no project secret mappings found")
+    if args.repository != REPOSITORY and args.repository.split("/")[-1] not in ENV_FILES and names:
+        raise RuntimeError("no approved server env source for this project")
     print("Organization SSH Secrets: " + ", ".join(sorted(SSH_NAMES)))
     print("Repository Secrets: " + ", ".join(names))
     if not args.apply:
         print("Plan only. No remote values read or GitHub settings changed. Use --apply to provision.")
         return
     org_scope = ["--org", ORG]
-    repo_scope = ["--repo", REPOSITORY]
+    repo_scope = ["--repo", args.repository]
     organization_names = existing(org_scope)
     if "FASTRD_SSH_PRIVATE_KEY" not in organization_names and args.ssh_key_file is None:
         raise RuntimeError("initial setup requires --ssh-key-file with an authorized deployment key")
@@ -118,7 +135,8 @@ def main():
     if conflicts and not args.overwrite:
         raise RuntimeError("existing Secrets would be replaced; inspect them before using --overwrite")
     organization = ssh_values(args.ssh_alias, args.ssh_key_file)
-    project = project_values(args.ssh_alias, names)
+    project = (project_values(args.ssh_alias, names) if args.repository == REPOSITORY else
+               project_values(args.ssh_alias, names, ENV_FILES[args.repository.split("/")[-1]]) if names else {})
     if set(project) != set(names) or any(not isinstance(value, str) or not value for value in project.values()):
         raise RuntimeError("source has missing or empty project secrets; no values were changed")
     for name, value in sorted(organization.items()):

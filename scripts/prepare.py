@@ -24,7 +24,7 @@ def main():
         raise ValueError("caller repository does not match app")
     bundle = Path(os.environ["BUNDLE_DIR"])
     bundle.mkdir(mode=0o700)
-    for name in ["remote.py", "launch.py"]:
+    for name in ["remote.py", "launch.py", "publication.py"]:
         shutil.copyfile(source / "scripts" / name, bundle / name)
     if operation == "rollback":
         expected = os.environ["EXPECTED_RELEASE"]

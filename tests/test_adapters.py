@@ -199,3 +199,32 @@ class PackageTests(unittest.TestCase):
                 self.assertIn('node_modules/a/index.js', names)
                 self.assertIn('node_modules/b/index.js', names)
                 self.assertFalse(any(member.issym() or member.islnk() or '.pnpm' in member.name for member in archive.getmembers()))
+
+
+class StartupTests(unittest.TestCase):
+    def test_pre_start_receives_exact_environment_before_application_exec(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); settings = root / '.fastdeploy'; settings.mkdir()
+            (settings / 'launch.py').write_bytes((ROOT / 'scripts/launch.py').read_bytes())
+            marker = root / 'migration.txt'
+            environment = {'PASSWORD': 'literal $ \nvalue'}
+            write_json(settings / 'runtime.json', {'env': environment, 'command': [],
+                'services': {'test.service': {'cwd': str(root), 'pre_start': [[sys.executable, '-c',
+                    'import os,pathlib;pathlib.Path("migration.txt").write_text(os.environ["PASSWORD"])']],
+                    'command': [sys.executable, '-c', 'import pathlib;assert pathlib.Path("migration.txt").exists()']}}})
+            result = subprocess.run([sys.executable, str(settings / 'launch.py'), 'test.service'], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(marker.read_text(), environment['PASSWORD'])
+            self.assertNotIn(environment['PASSWORD'], result.stdout + result.stderr)
+
+    def test_failed_migration_never_starts_application(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); settings = root / '.fastdeploy'; settings.mkdir()
+            (settings / 'launch.py').write_bytes((ROOT / 'scripts/launch.py').read_bytes())
+            write_json(settings / 'runtime.json', {'env': {}, 'pre_start': [[sys.executable, '-c', 'raise SystemExit(1)']],
+                'command': [sys.executable, '-c', 'import pathlib;pathlib.Path("started").touch()']})
+            result = subprocess.run([sys.executable, str(settings / 'launch.py')], capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((root / 'started').exists())

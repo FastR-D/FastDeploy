@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import subprocess
 from pathlib import Path
 
 
@@ -18,6 +19,11 @@ def main():
     }
     service = settings.get("services", {}).get(sys.argv[1] if len(sys.argv) > 1 else "", settings)
     os.chdir(service.get("cwd", root))
+    for command in service.get("pre_start", []):
+        result = subprocess.run(command, env=environment, stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL, timeout=180)
+        if result.returncode:
+            raise SystemExit("FastDeploy: application pre-start failed")
     command = service["command"]
     os.execve(command[0], command, environment)
 

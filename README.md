@@ -92,7 +92,7 @@ GitHub Free 组织的私有仓库无法使用组织 Secrets；私有调用项目
 - `release.tar.gz`：按 `config/apps.json` 中各项目的 artifact_roots 白名单打包；通过固定 SHA 的 `scripts/package.py` 产生。FastResearch 保留现有打包步骤。
 - `manifest.json`：`repository`、准确的 `sha`、`archive_sha256`。示例可见 FastResearch 的打包步骤。
 
-构建和部署目标均为 Ubuntu 24.04 x86_64。Python 依赖在 CI 安装到产物 `vendor/`，与线上 Python 次版本一致；Node 依赖或 Bun server bundle 也在 CI 准备，不在服务器安装依赖。FastTask 同时构建 sidecar 并携带 libfx 的生产依赖。打包时解引用链接与硬链接；服务端拒绝符号链接、硬链接、设备文件、重复路径、越界路径、`.env*`、`.git`、`.ssh` 和 `.fastdeploy`。解包后总大小上限 2 GiB。部署前后两次验证归属、SHA 和校验值，不在服务器重新 npm install/build。系统运行时版本、共享数据目录和必需应用文件均在切换前检查。
+构建和部署目标均为 Ubuntu 24.04 x86_64。Python 依赖在 CI 安装到产物 `vendor/`，与线上 Python 次版本一致；Node 依赖或 Bun server bundle 也在 CI 准备，不在服务器安装依赖。FastTask 同时构建 sidecar 并携带 libfx 的生产依赖。FastCAS 在启动同一版本服务前执行其受锁保护、事务化的 migrate 命令；数据库备份独立保留，代码回滚不会逆向恢复数据库。打包时解引用链接与硬链接；服务端拒绝符号链接、硬链接、设备文件、重复路径、越界路径、`.env*`、`.git`、`.ssh` 和 `.fastdeploy`。解包后总大小上限 2 GiB。部署前后两次验证归属、SHA 和校验值，不在服务器重新 npm install/build。系统运行时版本、共享数据目录和必需应用文件均在切换前检查。
 
 ## 首次上线顺序
 

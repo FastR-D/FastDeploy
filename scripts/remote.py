@@ -386,7 +386,9 @@ class Deployment:
         if self.services:
             runtime["services"] = {service["unit"]: {
                 "command": [value.replace("{release}", str(destination)) for value in service["command"]],
-                "cwd": service.get("cwd", "{release}").replace("{release}", str(destination))
+                "cwd": service.get("cwd", "{release}").replace("{release}", str(destination)),
+                "pre_start": [[value.replace("{release}", str(destination)) for value in command]
+                              for command in service.get("pre_start", [])],
             } for service in self.services}
         write_json(settings / "runtime.json", runtime)
         write_json(settings / "previous.json", previous)

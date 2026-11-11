@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Package tested, explicit runtime inputs. Never include live data or dotenv files."""
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -9,6 +8,8 @@ import shutil
 import subprocess
 import tarfile
 import tempfile
+
+from remote import sha256_file
 
 INPUTS = {
     'fastcas': ['bin/fastcas', 'web/dist'],
@@ -87,8 +88,7 @@ def main():
         with tarfile.open(archive, 'w:gz', dereference=True) as tar:
             for item in sorted(stage.iterdir()):
                 tar.add(item, arcname=item.name)
-        with archive.open('rb') as stream:
-            digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        digest = sha256_file(archive)
         manifest = {'repository': os.environ['GITHUB_REPOSITORY'], 'sha': os.environ['GITHUB_SHA'],
                     'archive_sha256': digest}
         (args.output / 'manifest.json').write_text(json.dumps(manifest) + '\n')

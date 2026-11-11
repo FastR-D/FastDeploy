@@ -171,3 +171,31 @@ class PublicFilesTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 extract_archive(archive,path/'out',['backend','vendor'])
             self.assertFalse((path/'out').exists())
+
+
+class PackageTests(unittest.TestCase):
+    def test_pnpm_dependency_cycle_is_flattened_and_links_are_absent(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'; source.mkdir()
+            (source / 'server-dist').mkdir(); (source / 'server-dist/server.mjs').write_text('// server')
+            (source / 'dist').mkdir(); (source / 'dist/index.html').write_text('UI')
+            write_json(source / 'package.json', {'dependencies': {'a': '1'}})
+            modules = source / 'node_modules'; modules.mkdir()
+            for name, dependency in [('a', 'b'), ('b', 'a')]:
+                location = modules / '.pnpm' / name / 'node_modules' / name
+                location.mkdir(parents=True)
+                write_json(location / 'package.json', {'name': name, 'dependencies': {dependency: '1'}})
+                (location / 'index.js').write_text(name)
+                (modules / name).symlink_to(location)
+            for name, dependency in [('a', 'b'), ('b', 'a')]:
+                (modules / '.pnpm' / name / 'node_modules' / dependency).symlink_to(modules / dependency)
+            environment = dict(os.environ, GITHUB_REPOSITORY='FastR-D/FastFigure', GITHUB_SHA='a'*40)
+            subprocess.run([sys.executable, str(ROOT / 'scripts/package.py'), 'fastfigure', '--source', str(source),
+                '--output', str(root / 'out')], env=environment, check=True, capture_output=True)
+            with tarfile.open(root / 'out/release.tar.gz') as archive:
+                names = archive.getnames()
+                self.assertIn('node_modules/a/index.js', names)
+                self.assertIn('node_modules/b/index.js', names)
+                self.assertFalse(any(member.issym() or member.islnk() or '.pnpm' in member.name for member in archive.getmembers()))

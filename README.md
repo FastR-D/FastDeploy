@@ -17,7 +17,7 @@ FastRD 的 GitHub Actions 可复用发布流程。项目仓库执行测试、构
 | FastFigure | Bun 1.4.0 / fastdeploy-fastfigure | 5178 /api/health | /home/dev/fastfigure-shared/components |
 | FastUI | Python 静态文档服务 / fastdeploy-fastui | 8792 HTTP 200 | 无业务数据库 |
 
-FastLabs、FastFigure 和 FastUI 首次标签才会创建服务，默认仅监听 loopback；未新增公网 Nginx 路由。FastLabs/FastFigure 保留本机 Agent 的访问边界。FastInsight 的检查只证明进程存活，飞书连接和上游业务仍需发布后人工验收。
+服务仅监听 loopback。现有泛域名 DNS/TLS 配合 FastResearch 的固定 Host 路由提供独立预览入口，无需开放应用端口。FastLabs/FastFigure 的本机 Agent 接口由管理员 Basic 登录和 Origin 检查保护；FastInsight 的进程检查不发送飞书验证消息。
 
 ## 项目部署 Action 如何写 env
 
@@ -100,7 +100,7 @@ GitHub Free 组织的私有仓库无法使用组织 Secrets；私有调用项目
 2. 设置组织 SSH Secrets、项目 Secrets，以及调用方的 `production` Environment。环境允许 `v*` tag；手动回滚从主分支执行，环境规则还需允许该分支。Environment 功能受 GitHub 套餐和仓库可见性限制。
 3. 核对项目 YAML 的普通配置，特别是绝对共享目录、域名和客户端 ID。各项目配置中密钥均以引用表示，缺少任意一个已声明密钥会在 SSH 上传前失败。
 4. 当前 `fastrd` 已停用并屏蔽旧发布 timer/service，不需要再执行接管脚本。其他仍运行旧轮询的服务器，可将 `scripts/remote.py` 与 `scripts/migrate_legacy.py` 放在同一临时目录，以部署用户执行 `python3 migrate_legacy.py --app research`，仅让出该项目。它持有旧发布器相同的项目锁，并保存旧脚本备份；等待项目锁最多 120 秒。
-5. 确认数据库变更向后兼容；首次接入先用兼容当前数据版本的 tag 验证。创建并推送版本 tag（如 `git tag v2026.11.11.1`，再 `git push origin v2026.11.11.1`）。普通提交信息包含 `v` 不触发部署。版本 tag 不应移动或复用。
+5. 确认数据库变更向后兼容；首次接入先用兼容当前数据版本的 tag 验证。创建并推送版本 tag（如 `git tag v2026.11.11-deploy.1`，再 `git push origin v2026.11.11-deploy.1`）。普通提交信息包含 `v` 不触发部署。版本 tag 不应移动或复用。
 6. 验证 Actions 输出、服务健康及公网页面/登录/集成。发布会短暂重启，原子切换不代表零停机。原服务定义和原配置文件保留，以便首版回退。
 
 新流程在旧 timer/service 仍拥有项目时拒绝发布。新旧发布器共用 `/home/dev/ci-releases/locks/research.lock`；GitHub job 同时使用独立 concurrency group，构建取消不会取消已开始的发布。仓库管理员仍应限制可创建生产版本 tag 的人员。
@@ -147,3 +147,20 @@ actionlint -ignore 'property "workflow_(repository|sha)" is not defined'
 测试使用临时目录、模拟 systemd，覆盖配置保真、敏感输入不回显、恶意包、幂等、旧 run 拒绝、重启/健康检查失败恢复、事务恢复、手动回滚、旧轮询接管、启动器环境、多服务失败恢复、首次创建清理以及 Nginx 两入口回滚。不会连接生产或修改真实 systemd。actionlint 1.7.12 尚未识别 GitHub 已支持的 `job.workflow_*` 字段，仅忽略这两项字段错误，其他检查保留。
 
 FastFigure 的生产进程使用 `/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun`。该固定版本运行时由运维预装；部署前验证 Bun 版本及 `node:sqlite`，CI 使用同版 Bun 验证构建产物、素材库 SQLite 和接口访问边界。Node 仅用于构建工具。
+
+独立入口：
+
+| 项目 | 地址 |
+| --- | --- |
+| FastCAS | https://cas.fastrd.io/ |
+| FastTask | https://task.fastrd.io/ |
+| FastRead | https://read.fastrd.io/ |
+| FastWrite | https://write.fastrd.io/ |
+| FastNews | https://news.fastrd.io/ |
+| FastUI | https://ui.fastrd.io/ |
+| FastFigure | https://figure.fastrd.io/ |
+| FastLabs | https://fastlabs.fastrd.io/ |
+| FastResearch | https://fastrd.io/ （research 子域名跳转到主站） |
+| FastInsight | https://insight.fastrd.io/ （飞书机器人说明页） |
+
+`labs.fastrd.io` 保留原 AgentHost。Figure 和 FastLabs 预览登录使用 FastResearch 管理员凭据，网关不会把 Basic 凭据传给应用。Read/Write/News 的 CAS 回调改为各自域名，使用 `scripts/register_subdomain_redirects.sql` 在备份后追加白名单；旧回调及客户端凭证均保留。服务器部署使用 `v*-deploy.*` 标签，CAS/UI 包发布及 Read 桌面端/Docker 发布排除此类标签。

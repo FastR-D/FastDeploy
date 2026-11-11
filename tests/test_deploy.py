@@ -105,11 +105,14 @@ class ProvisionTests(unittest.TestCase):
             self.assertEqual(kwargs["input"], secret)
 
     def test_plan_does_not_read_or_write_remote_values(self):
-        with patch.object(sys, "argv", ["provision_secrets.py"]):
-            with patch.object(provision_secrets, "capture") as capture:
-                with redirect_stdout(io.StringIO()):
-                    provision_secrets.main()
-                capture.assert_not_called()
+        with tempfile.TemporaryDirectory() as directory:
+            workflow = Path(directory) / "caller.yml"
+            workflow.write_text('runtime-secrets: ${{ toJSON(secrets.TEST_PASSWORD) }}')
+            with patch.object(sys, "argv", ["provision_secrets.py", "--workflow", str(workflow)]):
+                with patch.object(provision_secrets, "capture") as capture:
+                    with redirect_stdout(io.StringIO()):
+                        provision_secrets.main()
+                    capture.assert_not_called()
 
 
 class ArchiveTests(unittest.TestCase):

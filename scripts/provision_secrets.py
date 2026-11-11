@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shlex
 import subprocess
+import time
 
 ROOT = Path(__file__).resolve().parent.parent
 ORG = "FastR-D"
@@ -17,7 +18,17 @@ SSH_NAMES = {"FASTRD_SSH_HOST", "FASTRD_SSH_PORT", "FASTRD_SSH_USER",
 
 
 def capture(args, input=None):
-    return subprocess.run(args, input=input, capture_output=True, text=True, check=True, timeout=60).stdout
+    # Operations here are reads or idempotent Secret PUTs. Retry transport errors
+    # only; permission failures must still stop before reading source credentials.
+    for attempt in range(3):
+        try:
+            return subprocess.run(args, input=input, capture_output=True, text=True, check=True, timeout=60).stdout
+        except subprocess.CalledProcessError as error:
+            transport_error = any(fragment in (error.stderr or "").lower() for fragment in
+                                  ["eof", "tls", "connection reset", "timed out", "temporarily unavailable"])
+            if not transport_error or attempt == 2:
+                raise
+            time.sleep(attempt + 1)
 
 
 def project_names(workflow):

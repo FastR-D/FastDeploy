@@ -94,6 +94,21 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_transport_errors_retry_without_exposing_input(self):
+        with patch.object(subprocess, "run", side_effect=[
+            subprocess.CalledProcessError(1, ["gh"], stderr="unexpected EOF"),
+            subprocess.CompletedProcess(["gh"], 0, stdout="ok"),
+        ]) as run, patch.object(provision_secrets.time, "sleep"):
+            self.assertEqual(provision_secrets.capture(["gh"], input="private"), "ok")
+            self.assertEqual(run.call_count, 2)
+
+    def test_permission_errors_do_not_retry(self):
+        with patch.object(subprocess, "run", side_effect=
+                          subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 403")) as run:
+            with self.assertRaises(subprocess.CalledProcessError):
+                provision_secrets.capture(["gh"])
+            self.assertEqual(run.call_count, 1)
+
     def test_secret_is_only_passed_through_stdin(self):
         secret = 'private value\\"\nsecond line'
         with patch.object(provision_secrets, "capture", return_value="") as capture:

@@ -21,4 +21,5 @@ jobs:
       - run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
       # v1.7.12 predates GitHub's documented job.workflow_* identity properties.
       # Keep all other expression, shell and workflow checks enabled.
-      - run: $(go env GOPATH)/bin/actionlint -color -ignore 'property "workflow_(repository|sha)" is not defined'
+      - run: |
+          "$(go env GOPATH)/bin/actionlint" -color -ignore 'property "workflow_(repository|sha)" is not defined'

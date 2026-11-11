@@ -39,7 +39,7 @@ def existing(scope):
     return {item["name"] for item in json.loads(capture(["gh", "secret", "list", *scope, "--json", "name"]))}
 
 
-def ssh_values(alias):
+def ssh_values(alias, key_file=None):
     rows = capture(["ssh", "-G", alias]).splitlines()
     settings = {}
     for row in rows:
@@ -56,18 +56,18 @@ def ssh_values(alias):
             pinned.extend(line for line in result.stdout.splitlines() if line and not line.startswith("#"))
     if not pinned:
         raise RuntimeError("no trusted known_hosts entry found")
-    # This is the existing dedicated CI key, not the user's personal SSH key.
-    key = capture(["ssh", "-o", "BatchMode=yes", alias,
-                   "cat /home/dev/ci-deploy/github-actions-deploy"])
-    public = capture(["ssh", "-o", "BatchMode=yes", alias,
-                      "ssh-keygen -y -f /home/dev/ci-deploy/github-actions-deploy"]).strip()
-    authorized = capture(["ssh", "-o", "BatchMode=yes", alias, "cat /home/dev/.ssh/authorized_keys"])
-    # Compare the algorithm and base64 key, ignoring comments and key options.
-    if not public or public not in authorized:
-        raise RuntimeError("dedicated CI key is not authorized")
-    return {"FASTRD_SSH_HOST": hostname, "FASTRD_SSH_PORT": port,
-            "FASTRD_SSH_USER": settings["user"], "FASTRD_SSH_PRIVATE_KEY": key,
-            "FASTRD_SSH_KNOWN_HOSTS": "\n".join(pinned) + "\n"}
+    values = {"FASTRD_SSH_HOST": hostname, "FASTRD_SSH_PORT": port,
+              "FASTRD_SSH_USER": settings["user"], "FASTRD_SSH_KNOWN_HOSTS": "\n".join(pinned) + "\n"}
+    # Existing organization private keys are preserved. Key replacement requires
+    # an explicit local file; never recover an obsolete CI key from the server.
+    if key_file is not None:
+        key_file = Path(key_file)
+        public = capture(["ssh-keygen", "-y", "-f", str(key_file)]).strip()
+        authorized = capture(["ssh", "-o", "BatchMode=yes", alias, "cat /home/dev/.ssh/authorized_keys"])
+        if not public or public not in authorized:
+            raise RuntimeError("dedicated CI key is not authorized")
+        values["FASTRD_SSH_PRIVATE_KEY"] = key_file.read_text()
+    return values
 
 
 def project_values(alias, names):
@@ -95,6 +95,8 @@ def main():
     parser.add_argument("--workflow", type=Path,
                         default=ROOT.parent / "FastResearch/.github/workflows/tag-ci.yml")
     parser.add_argument("--ssh-alias", default="fastrd")
+    parser.add_argument("--ssh-key-file", type=Path,
+                        help="Explicit local deployment private key for initial setup or rotation")
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--overwrite", action="store_true", help="Explicitly permit replacing existing same-name secrets")
     args = parser.parse_args()
@@ -108,10 +110,14 @@ def main():
         return
     org_scope = ["--org", ORG]
     repo_scope = ["--repo", REPOSITORY]
-    conflicts = (existing(org_scope) & SSH_NAMES) | (existing(repo_scope) & set(names))
+    organization_names = existing(org_scope)
+    if "FASTRD_SSH_PRIVATE_KEY" not in organization_names and args.ssh_key_file is None:
+        raise RuntimeError("initial setup requires --ssh-key-file with an authorized deployment key")
+    to_write = SSH_NAMES if args.ssh_key_file is not None else SSH_NAMES - {"FASTRD_SSH_PRIVATE_KEY"}
+    conflicts = (organization_names & to_write) | (existing(repo_scope) & set(names))
     if conflicts and not args.overwrite:
         raise RuntimeError("existing Secrets would be replaced; inspect them before using --overwrite")
-    organization = ssh_values(args.ssh_alias)
+    organization = ssh_values(args.ssh_alias, args.ssh_key_file)
     project = project_values(args.ssh_alias, names)
     if set(project) != set(names) or any(not isinstance(value, str) or not value for value in project.values()):
         raise RuntimeError("source has missing or empty project secrets; no values were changed")

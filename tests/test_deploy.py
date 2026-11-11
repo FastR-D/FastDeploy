@@ -94,6 +94,20 @@ class ConfigurationTests(unittest.TestCase):
 
 
 class ProvisionTests(unittest.TestCase):
+    def test_existing_private_key_is_preserved_without_explicit_key_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workflow = Path(directory) / "caller.yml"
+            workflow.write_text('runtime-secrets: ${{ toJSON(secrets.TEST_PASSWORD) }}')
+            metadata = {name: "value" for name in provision_secrets.SSH_NAMES if name != "FASTRD_SSH_PRIVATE_KEY"}
+            with patch.object(sys, "argv", ["provision_secrets.py", "--apply", "--workflow", str(workflow)]), \
+                    patch.object(provision_secrets, "existing", side_effect=[{"FASTRD_SSH_PRIVATE_KEY"}, set()]), \
+                    patch.object(provision_secrets, "ssh_values", return_value=metadata) as source, \
+                    patch.object(provision_secrets, "project_values", return_value={"TEST_PASSWORD": "secret"}), \
+                    patch.object(provision_secrets, "set_secret") as write, redirect_stdout(io.StringIO()):
+                provision_secrets.main()
+                source.assert_called_once_with("fastrd", None)
+                self.assertNotIn("FASTRD_SSH_PRIVATE_KEY", [call.args[0] for call in write.call_args_list])
+
     def test_transport_errors_retry_without_exposing_input(self):
         with patch.object(subprocess, "run", side_effect=[
             subprocess.CalledProcessError(1, ["gh"], stderr="unexpected EOF"),

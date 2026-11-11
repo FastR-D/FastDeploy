@@ -1,0 +1,9 @@
+{
+  "type": "ed25519",
+  "fingerprint": "SHA256:7A0thGN2ykch3HAPhXTcNOZadLZANyPLWsbdgqrd/II",
+  "comment": "fastrd-actions-20261111-d8553c6e",
+  "user": "dev",
+  "authorized_keys_options": ["restrict"],
+  "private_key_secret": "FastR-D/FASTRD_SSH_PRIVATE_KEY",
+  "old_ci_key_revoked": true
+}

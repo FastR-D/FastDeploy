@@ -54,7 +54,17 @@ deploy:
 
 强制检查固定的 SSH 主机公钥，不在首次连接时运行 `ssh-keyscan` 信任新密钥。服务器 SSH 别名不会自动出现在 GitHub runner 中，workflow 会生成自己的临时配置。私钥和上传配置仅存在于临时私有目录；正常完成和失败都会清理。runner 强制终止或网络中断可能留下服务器 incoming 目录，恢复后由管理员核对并清理超过一天的孤立目录。
 
-项目密钥保存在调用方仓库 Secrets；FastResearch 的确切清单见其 `runtime-secrets` 映射。可用 `python3 scripts/provision_secrets.py` 检查计划，执行时加 `--apply`：脚本从已有专用部署密钥和服务器运行配置读取值，直接通过 stdin 交给 `gh secret set`，不输出密钥值、不落盘。默认拒绝覆盖同名已有 Secret。
+项目密钥保存在调用方仓库 Secrets；FastResearch 的确切清单见其 `runtime-secrets` 映射。可用 `python3 scripts/provision_secrets.py` 检查计划，执行时加 `--apply`。项目配置按服务器现值迁移，直接通过 stdin 交给 `gh secret set`，不输出密钥值、不落盘。默认拒绝覆盖同名已有 Secret；显式更新使用 `--overwrite`。
+
+已有组织私钥默认保留。初次设置或轮换私钥时，必须显式传 `--ssh-key-file /安全目录/部署私钥`，并提前将对应公钥加入服务器的 `authorized_keys`。脚本会核对公钥已授权，不再从服务器读取旧 CI 私钥，避免将已轮换的组织 Secret 改回旧密钥。
+
+### 当前部署密钥
+
+当前使用独立的 Ed25519 部署密钥，公开指纹记录在 `config/deployment-key.json`。私钥只保存在组织 Secret；生成及验证时的本地私钥文件已删除，服务器没有新私钥副本。原 `github-actions-fast-cd` 公钥已从服务器授权中撤销，日常 SSH 公钥保留。
+
+公钥在 `dev` 的 `authorized_keys` 中使用 `restrict`，禁用 PTY、端口/agent/X11 转发及用户 ssh rc，仍允许部署需要的非交互命令。它仍具有 `dev` 的命令权限；`restrict` 不是只能调用发布命令的沙箱。若后续要求命令级隔离，需要另建部署账户及可信的强制命令入口，并适配现有服务权限。
+
+轮换顺序：本地生成新的 Ed25519 密钥 → 仅上传公钥并添加 `restrict` → 使用新私钥及固定 known_hosts 验证登录和限制 → 更新组织 Secret，保留原来的仓库授权范围 → 再次验证后撤销旧 CI 公钥 → 删除本地新私钥。不要覆盖或撤销日常 SSH 公钥。
 
 配置组织 Secrets 的 GitHub CLI 凭据需要 `admin:org`（或等效细粒度权限）。若组织 API 返回 403，在本机执行 `gh auth refresh -h github.com -s admin:org` 并完成 GitHub 授权，然后再执行配置脚本。已有旧名称的 Secrets 不会被删除。
 
@@ -74,11 +84,17 @@ GitHub Free 组织的私有仓库无法使用组织 Secrets；私有调用项目
 1. 审核并发布 FastDeploy，先建立 `v1`，把调用方改为它的完整提交 SHA；再发布调用方配置。当前源码不会自动改变仓库可见性或创建发布 tag。
 2. 设置组织 SSH Secrets、项目 Secrets，以及调用方的 `production` Environment。环境允许 `v*` tag；手动回滚从主分支执行，环境规则还需允许该分支。Environment 功能受 GitHub 套餐和仓库可见性限制。
 3. 核对项目 YAML 的普通配置，特别是绝对共享目录、域名和客户端 ID。现有 FastResearch 配置中密钥均以引用表示，缺少任意一个已声明密钥会在 SSH 上传前失败。
-4. 将本仓库的 `scripts/remote.py` 与 `scripts/migrate_legacy.py` 放在服务器同一临时目录，以 `dev` 执行 `python3 migrate_legacy.py --app research`。它持有旧发布器相同的项目锁，在旧脚本加锁之后插入接管检查、保存旧脚本备份并建立 research 标记，不重启业务服务，不停止其他项目轮询。先确认旧发布器当前没有长时间构建；等待项目锁最多 120 秒。
+4. 当前 `fastrd` 已停用并屏蔽旧发布 timer/service，不需要再执行接管脚本。其他仍运行旧轮询的服务器，可将 `scripts/remote.py` 与 `scripts/migrate_legacy.py` 放在同一临时目录，以部署用户执行 `python3 migrate_legacy.py --app research`，仅让出该项目。它持有旧发布器相同的项目锁，并保存旧脚本备份；等待项目锁最多 120 秒。
 5. 确认数据库变更向后兼容；首次接入先用兼容当前数据版本的 tag 验证。创建并推送版本 tag（如 `git tag v2026.11.11.1`，再 `git push origin v2026.11.11.1`）。普通提交信息包含 `v` 不触发部署。版本 tag 不应移动或复用。
 6. 验证 Actions 输出、服务健康及公网页面/登录/集成。发布会短暂重启，原子切换不代表零停机。原服务定义和原配置文件保留，以便首版回退。
 
 新流程在旧 timer/service 仍拥有项目时拒绝发布。新旧发布器共用 `/home/dev/ci-releases/locks/research.lock`；GitHub job 同时使用独立 concurrency group，构建取消不会取消已开始的发布。仓库管理员仍应限制可创建生产版本 tag 的人员。
+
+### 当前服务器切换状态
+
+`fast-tag-deploy.timer`、`fast-tag-deploy.service`、`fast-cd.timer`、`fast-cd.service` 均为 `inactive / masked`，原单元保存在 `/home/dev/.local/state/fastdeploy/legacy-retired/20261111T135607Z`。停用前等待了当前轮询结束，没有中断版本切换。业务服务的 systemd 单元继续保留，由 FastDeploy 调用重启；资讯定时任务和证书续期 timer 继续运行。
+
+目前只有 FastResearch 接入了新的发布 workflow。旧轮询已整体停用，因此其他项目在完成自己的 FastDeploy 适配前不会自动发布；现有业务服务继续运行。不要恢复旧发布器作为并行发布入口。
 
 ## 发布与回滚记录
 

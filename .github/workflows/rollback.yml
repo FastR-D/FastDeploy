@@ -1,0 +1,64 @@
+name: Roll back application
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        required: true
+        type: string
+      expected-release:
+        required: true
+        type: string
+      environment:
+        default: production
+        type: string
+    secrets:
+      SSH_HOST:
+        required: true
+      SSH_PORT:
+        required: true
+      SSH_USER:
+        required: true
+      SSH_PRIVATE_KEY:
+        required: true
+      SSH_KNOWN_HOSTS:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: fastdeploy-${{ inputs.app }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - name: Prepare rollback request
+        env:
+          DEPLOY_OPERATION: rollback
+          DEPLOY_APP: ${{ inputs.app }}
+          EXPECTED_RELEASE: ${{ inputs.expected-release }}
+          BUNDLE_DIR: ${{ runner.temp }}/fastdeploy-bundle
+        run: python3 scripts/prepare.py
+      - name: Restore previous release
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/fastdeploy-bundle
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: python3 scripts/transport.py
+      - name: Remove private temporary files
+        if: always()
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/fastdeploy-bundle
+        run: rm -rf -- "$BUNDLE_DIR"

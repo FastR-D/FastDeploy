@@ -1,0 +1,77 @@
+name: Deploy application
+
+on:
+  workflow_call:
+    inputs:
+      app:
+        required: true
+        type: string
+      artifact-name:
+        required: true
+        type: string
+      runtime-env:
+        required: true
+        type: string
+      environment:
+        default: production
+        type: string
+    secrets:
+      SSH_HOST:
+        required: true
+      SSH_PORT:
+        required: true
+      SSH_USER:
+        required: true
+      SSH_PRIVATE_KEY:
+        required: true
+      SSH_KNOWN_HOSTS:
+        required: true
+      runtime-secrets:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    concurrency:
+      group: fastdeploy-${{ inputs.app }}-${{ inputs.environment }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout the exact reusable workflow implementation
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ runner.temp }}/fastdeploy-artifact
+      - name: Validate and prepare private release bundle
+        env:
+          DEPLOY_APP: ${{ inputs.app }}
+          RUNTIME_ENV: ${{ inputs.runtime-env }}
+          RUNTIME_SECRETS: ${{ secrets.runtime-secrets }}
+          ARTIFACT_DIR: ${{ runner.temp }}/fastdeploy-artifact
+          BUNDLE_DIR: ${{ runner.temp }}/fastdeploy-bundle
+        run: python3 scripts/prepare.py
+      - name: Upload and activate
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/fastdeploy-bundle
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: python3 scripts/transport.py
+      - name: Remove private temporary files
+        if: always()
+        env:
+          BUNDLE_DIR: ${{ runner.temp }}/fastdeploy-bundle
+          ARTIFACT_DIR: ${{ runner.temp }}/fastdeploy-artifact
+        run: rm -rf -- "$BUNDLE_DIR" "$ARTIFACT_DIR"

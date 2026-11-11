@@ -1,0 +1,24 @@
+name: Check deployment tooling
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 -m unittest discover -s tests -v
+      - run: python3 -m compileall -q scripts tests
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.8'
+      - run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      # v1.7.12 predates GitHub's documented job.workflow_* identity properties.
+      # Keep all other expression, shell and workflow checks enabled.
+      - run: $(go env GOPATH)/bin/actionlint -color -ignore 'property "workflow_(repository|sha)" is not defined'

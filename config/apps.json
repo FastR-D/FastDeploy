@@ -1,0 +1,18 @@
+{
+  "fastresearch": {
+    "repository": "FastR-D/FastResearch",
+    "legacy_app": "research",
+    "unit": "fastresearch.service",
+    "command": ["/usr/bin/node", "server/index.mjs"],
+    "health_url": "http://127.0.0.1:8787/api/health",
+    "required_files": ["server/index.mjs", "dist/index.html", "node_modules/@fastrd/fastcas/package.json"],
+    "required_env": ["HOST", "PORT", "FASTRESEARCH_PUBLIC_URL", "FASTRESEARCH_DATA_DIR", "FASTRESEARCH_JWT_SECRET"],
+    "fixed_env": {
+      "HOST": "127.0.0.1",
+      "PORT": "8787",
+      "FASTRESEARCH_DATA_DIR": "/home/dev/FastResearch/data"
+    },
+    "shared_paths": ["/home/dev/FastResearch/data"],
+    "runtime_check": ["/usr/bin/node", "-e", "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(1)"]
+  }
+}

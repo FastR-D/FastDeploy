@@ -14,7 +14,7 @@ FastRD 的 GitHub Actions 可复用发布流程。项目仓库执行测试、构
 | FastWrite | Bun 1.4.0 / fastdeploy-fastwrite | 3003 /api/health | /home/dev/fastwrite-shared/data |
 | FastInsight | Python 3.12 / fastinsight-feishu | 进程连续 10 秒存活，不发送验证消息 | /home/dev/fastinsight，含原 roster 和待确认任务 |
 | FastLabs | Python 3.12 / fastdeploy-fastlabs | 8789 /api/health | /home/dev/fastlabs-shared/data |
-| FastFigure | Node 24 / fastdeploy-fastfigure | 5178 /api/health | /home/dev/fastfigure-shared/components |
+| FastFigure | Bun 1.4.0 / fastdeploy-fastfigure | 5178 /api/health | /home/dev/fastfigure-shared/components |
 | FastUI | Python 静态文档服务 / fastdeploy-fastui | 8792 HTTP 200 | 无业务数据库 |
 
 FastLabs、FastFigure 和 FastUI 首次标签才会创建服务，默认仅监听 loopback；未新增公网 Nginx 路由。FastLabs/FastFigure 保留本机 Agent 的访问边界。FastInsight 的检查只证明进程存活，飞书连接和上游业务仍需发布后人工验收。
@@ -145,3 +145,5 @@ actionlint -ignore 'property "workflow_(repository|sha)" is not defined'
 ```
 
 测试使用临时目录、模拟 systemd，覆盖配置保真、敏感输入不回显、恶意包、幂等、旧 run 拒绝、重启/健康检查失败恢复、事务恢复、手动回滚、旧轮询接管、启动器环境、多服务失败恢复、首次创建清理以及 Nginx 两入口回滚。不会连接生产或修改真实 systemd。actionlint 1.7.12 尚未识别 GitHub 已支持的 `job.workflow_*` 字段，仅忽略这两项字段错误，其他检查保留。
+
+FastFigure 的生产进程使用 `/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun`。该固定版本运行时由运维预装；部署前验证 Bun 版本及 `node:sqlite`，CI 使用同版 Bun 验证构建产物、素材库 SQLite 和接口访问边界。Node 仅用于构建工具。

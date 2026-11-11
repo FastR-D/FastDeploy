@@ -18,7 +18,7 @@ INPUTS = {
     'fastinsight': ['fastinsight', 'feishu_bot.py', 'scripts', 'assets', 'vendor'],
     'fastlabs': ['server.py', 'agent_adapter.py', 'fastcas_pairing.py', 'feishu_gateway.py',
                  'feishu_help.py', 'web', 'skills', 'schemas', 'vendor'],
-    'fastfigure': ['server-dist', 'dist', 'node_modules', 'package.json'],
+    'fastfigure': ['server-dist', 'dist', 'package.json'],
     'fastui': ['docs/dist'],
 }
 
@@ -59,9 +59,9 @@ def main():
         else:
             for name in INPUTS[args.app]:
                 copy(source / name, stage / name)
-        if args.app == 'fastwrite':
-            # Bun bundles the server; PDF.js remains an external package.
-            modules = source / 'apps/server/node_modules'
+        if args.app in {'fastwrite', 'fastfigure'}:
+            # Copy the reachable package graph once, without pnpm's cyclic store links.
+            modules = source / ('apps/server/node_modules' if args.app == 'fastwrite' else 'node_modules')
             copied = set()
             def package(name, parent, optional=False):
                 if name in copied:
@@ -80,7 +80,9 @@ def main():
                     package(dependency, found)
                 for dependency in metadata.get('optionalDependencies', {}):
                     package(dependency, found, optional=True)
-            package('pdfjs-dist', modules.parent)
+            names = ['pdfjs-dist'] if args.app == 'fastwrite' else json.loads((source / 'package.json').read_text())['dependencies']
+            for name in names:
+                package(name, modules.parent)
         archive = args.output / 'release.tar.gz'
         with tarfile.open(archive, 'w:gz', dereference=True) as tar:
             for item in sorted(stage.iterdir()):

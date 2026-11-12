@@ -484,50 +484,5 @@
     "create_paths": [
       "/home/dev/fastfigure-shared/components"
     ]
-  },
-  "fastui": {
-    "repository": "FastR-D/FastUI",
-    "legacy_app": "ui",
-    "unit": "fastdeploy-fastui.service",
-    "command": [
-      "/usr/bin/python3",
-      "-m",
-      "http.server",
-      "8792",
-      "--bind",
-      "127.0.0.1",
-      "--directory",
-      "docs/dist"
-    ],
-    "services": [
-      {
-        "unit": "fastdeploy-fastui.service",
-        "command": [
-          "/usr/bin/python3",
-          "-m",
-          "http.server",
-          "8792",
-          "--bind",
-          "127.0.0.1",
-          "--directory",
-          "docs/dist"
-        ]
-      }
-    ],
-    "health_url": "http://127.0.0.1:8792/#http200",
-    "artifact_roots": [
-      "docs"
-    ],
-    "required_files": [
-      "docs/dist/index.html"
-    ],
-    "required_env": [],
-    "fixed_env": {},
-    "shared_paths": [],
-    "runtime_check": [
-      "/usr/bin/python3",
-      "-c",
-      "import sys; assert sys.version_info >= (3,12)"
-    ]
   }
 }

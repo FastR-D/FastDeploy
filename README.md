@@ -2,7 +2,7 @@
 
 FastRD 的 GitHub Actions 可复用发布流程。项目仓库执行测试、构建和上传；FastDeploy 校验产物，通过 SSH 上传、原子切换版本并重启 systemd。失败时恢复之前的版本和运行配置，再检查恢复结果。
 
-已适配本地 FastRD 下的全部 10 个应用仓库。每个项目的 `tag-ci.yml` 负责验证和打包，只有推送 `v*` **标签**才部署；`main` 普通提交、PR、手动验证均不部署。`rollback.yml` 从 `main` 手动恢复指定的当前版本。适配提交本身不会重启线上业务。
+已适配本地 FastRD 下的9 个服务器应用仓库。每个项目的 `tag-ci.yml` 负责验证和打包，只有推送 `v*` **标签**才部署；`main` 普通提交、PR、手动验证均不部署。`rollback.yml` 从 `main` 手动恢复指定的当前版本。适配提交本身不会重启线上业务。
 
 | 项目 | 运行时 / 服务 | 就绪检查 | 持久化目录 |
 | --- | --- | --- | --- |
@@ -15,7 +15,6 @@ FastRD 的 GitHub Actions 可复用发布流程。项目仓库执行测试、构
 | FastInsight | Python 3.12 / fastinsight-feishu | 进程连续 10 秒存活，不发送验证消息 | /home/dev/fastinsight，含原 roster 和待确认任务 |
 | FastLabs | Python 3.12 / fastdeploy-fastlabs | 8789 /api/health | /home/dev/fastlabs-shared/data |
 | FastFigure | Bun 1.4.0 / fastdeploy-fastfigure | 5178 /api/health | /home/dev/fastfigure-shared/components |
-| FastUI | Python 静态文档服务 / fastdeploy-fastui | 8792 HTTP 200 | 无业务数据库 |
 
 服务仅监听 loopback。现有泛域名 DNS/TLS 配合 FastResearch 的固定 Host 路由提供独立预览入口，无需开放应用端口。FastLabs/FastFigure 的本机 Agent 接口由管理员 Basic 登录和 Origin 检查保护；FastInsight 的进程检查不发送飞书验证消息。
 
@@ -69,7 +68,7 @@ deploy:
 
 强制检查固定的 SSH 主机公钥，不在首次连接时运行 `ssh-keyscan` 信任新密钥。服务器 SSH 别名不会自动出现在 GitHub runner 中，workflow 会生成自己的临时配置。私钥和上传配置仅存在于临时私有目录；正常完成和失败都会清理。runner 强制终止或网络中断可能留下服务器 incoming 目录，恢复后由管理员核对并清理超过一天的孤立目录。
 
-项目密钥保存在调用方仓库 Secrets，确切清单见各项目的 `runtime-secrets` 映射。可用 `python3 scripts/provision_secrets.py` 检查 FastResearch 的计划；其他项目需同时指定 `--repository FastR-D/FastRead --workflow ../FastRead/.github/workflows/tag-ci.yml`，执行时加 `--apply`。FastLabs、FastFigure、FastUI 当前无运行时密钥。项目配置按服务器现值迁移，直接通过 stdin 交给 `gh secret set`，不输出密钥值、不落盘。默认拒绝覆盖同名已有 Secret；显式更新使用 `--overwrite`。
+项目密钥保存在调用方仓库 Secrets，确切清单见各项目的 `runtime-secrets` 映射。可用 `python3 scripts/provision_secrets.py` 检查 FastResearch 的计划；其他项目需同时指定 `--repository FastR-D/FastRead --workflow ../FastRead/.github/workflows/tag-ci.yml`，执行时加 `--apply`。FastLabs、FastFigure 当前无运行时密钥。项目配置按服务器现值迁移，直接通过 stdin 交给 `gh secret set`，不输出密钥值、不落盘。默认拒绝覆盖同名已有 Secret；显式更新使用 `--overwrite`。
 
 已有组织私钥默认保留。初次设置或轮换私钥时，必须显式传 `--ssh-key-file /安全目录/部署私钥`，并提前将对应公钥加入服务器的 `authorized_keys`。脚本会核对公钥已授权，不再从服务器读取旧 CI 私钥，避免将已轮换的组织 Secret 改回旧密钥。
 
@@ -157,10 +156,12 @@ FastFigure 的生产进程使用 `/home/dev/.local/share/fastdeploy/runtime/bun-
 | FastRead | https://read.fastrd.io/ |
 | FastWrite | https://write.fastrd.io/ |
 | FastNews | https://news.fastrd.io/ |
-| FastUI | https://ui.fastrd.io/ |
+| FastUI | https://fastr-d.github.io/FastUI/ （GitHub Pages） |
 | FastFigure | https://figure.fastrd.io/ |
 | FastLabs | https://fastlabs.fastrd.io/ |
 | FastResearch | https://fastrd.io/ （research 子域名跳转到主站） |
 | FastInsight | https://insight.fastrd.io/ （飞书机器人说明页） |
 
 `labs.fastrd.io` 保留原 AgentHost。Figure 和 FastLabs 预览登录使用 FastResearch 管理员凭据，网关不会把 Basic 凭据传给应用。Read/Write/News 的 CAS 回调改为各自域名，使用 `scripts/register_subdomain_redirects.sql` 在备份后追加白名单；旧回调及客户端凭证均保留。服务器部署使用 `v*-deploy.*` 标签，CAS/UI 包发布及 Read 桌面端/Docker 发布排除此类标签。
+
+FastUI 文档仅部署到 GitHub Pages，不在应用配置、服务器打包器或 SSH Secrets 仓库名单中。`ui.fastrd.io` 仅跳转到 Pages；服务器不再运行 FastUI 服务。

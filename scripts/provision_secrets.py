@@ -12,7 +12,7 @@ import time
 ROOT = Path(__file__).resolve().parent.parent
 ORG = "FastR-D"
 REPOSITORY = ORG + "/FastResearch"
-SSH_REPOSITORIES = "FastResearch,FastNews,FastWrite,FastRead,FastTask,FastCAS,FastInsight,FastLabs,FastFigure,FastUI"
+SSH_REPOSITORIES = "FastResearch,FastNews,FastWrite,FastRead,FastTask,FastCAS,FastInsight,FastLabs,FastFigure"
 SSH_NAMES = {"FASTRD_SSH_HOST", "FASTRD_SSH_PORT", "FASTRD_SSH_USER",
              "FASTRD_SSH_PRIVATE_KEY", "FASTRD_SSH_KNOWN_HOSTS"}
 

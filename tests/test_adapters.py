@@ -118,7 +118,8 @@ class GroupTests(unittest.TestCase):
 
     def test_each_profile_has_matching_repository_and_safe_packaging(self):
         profiles = json.loads((ROOT / 'config/apps.json').read_text())
-        self.assertEqual(len(profiles), 10)
+        self.assertEqual(len(profiles), 9)
+        self.assertNotIn('fastui', profiles)
         for app, profile in profiles.items():
             self.assertEqual(profile['repository'].split('/')[1].lower(), app)
             self.assertTrue(all(not path.startswith('/') and '..' not in Path(path).parts for path in profile['required_files']))

@@ -20,7 +20,6 @@ INPUTS = {
     'fastlabs': ['server.py', 'agent_adapter.py', 'fastcas_pairing.py', 'feishu_gateway.py',
                  'feishu_help.py', 'web', 'skills', 'schemas', 'vendor'],
     'fastfigure': ['server-dist', 'dist', 'package.json'],
-    'fastui': ['docs/dist'],
 }
 
 

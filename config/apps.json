@@ -39,27 +39,28 @@
     "legacy_app": "news",
     "unit": "fastnews.service",
     "command": [
-      "/home/dev/FastNews/.venv/bin/python",
-      "server/serve.py"
+      "{release}/bin/fastnews",
+      "serve"
     ],
     "services": [
       {
         "unit": "fastnews.service",
         "command": [
-          "/home/dev/FastNews/.venv/bin/python",
-          "server/serve.py"
+          "{release}/bin/fastnews",
+          "serve"
         ]
       }
     ],
     "health_url": "http://127.0.0.1:8788/api/health",
     "artifact_roots": [
-      "server",
-      "vendor"
+      "bin",
+      "web"
     ],
     "required_files": [
-      "server/serve.py",
-      "server/assets/account.html",
-      "vendor/werkzeug/__init__.py"
+      "bin/fastnews",
+      "web/dist/index.html",
+      "web/dist/reports/handoff.js",
+      "web/dist/reports/report.css"
     ],
     "required_env": [
       "FASTNEWS_HOST",
@@ -76,15 +77,14 @@
     "shared_paths": [
       "/home/dev/FastNews"
     ],
-    "runtime_check": [
-      "/home/dev/FastNews/.venv/bin/python",
-      "-c",
-      "import sys; assert sys.version_info[:2] == (3,13)"
-    ],
     "release_env": {
-      "PYTHONPATH": "{release}/vendor",
-      "FASTNEWS_CODE_ROOT": "{release}/server"
-    }
+      "FASTNEWS_WEB_DIR": "{release}/web/dist"
+    },
+    "runtime_check": [
+      "/usr/bin/python3",
+      "-c",
+      "import sys; assert sys.version_info >= (3,12)"
+    ]
   },
   "fastcas": {
     "repository": "FastR-D/FastCAS",

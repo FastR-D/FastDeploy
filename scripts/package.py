@@ -5,13 +5,13 @@ import json
 import os
 from pathlib import Path
 import shutil
-import subprocess
 import tarfile
 import tempfile
 
 from remote import sha256_file
 
 INPUTS = {
+    'fastnews': ['bin/fastnews', 'web/dist'],
     'fastcas': ['bin/fastcas', 'web/dist'],
     'fasttask': ['bin/fasttask', 'web/dist', 'web/node_modules', 'sidecar/dist'],
     'fastwrite': ['apps/server/dist', 'apps/web/dist', 'package.json'],
@@ -38,7 +38,7 @@ def copy(source, destination):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('app', choices=[*INPUTS, 'fastnews'])
+    parser.add_argument('app', choices=list(INPUTS))
     parser.add_argument('--source', type=Path, default=Path.cwd())
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -46,19 +46,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='fastdeploy-package-') as temporary:
         stage = Path(temporary)
-        if args.app == 'fastnews':
-            tracked = subprocess.check_output(['git', '-C', str(source), 'ls-files', '-z']).decode().split('\0')
-            for name in tracked:
-                parts = Path(name).parts
-                # Generated reports, article databases and personal data stay on the server.
-                if not parts or parts[0].startswith('.') or 'data' in parts or name.startswith('test'):
-                    continue
-                if Path(name).suffix.lower() in {'.py', '.html', '.css', '.js', '.svg', '.png', '.ico', '.txt'} or parts[0] == 'prompt':
-                    copy(source / name, stage / 'server' / name)
-            copy(source / 'vendor', stage / 'vendor')
-        else:
-            for name in INPUTS[args.app]:
-                copy(source / name, stage / name)
+        for name in INPUTS[args.app]:
+            copy(source / name, stage / name)
         if args.app in {'fastwrite', 'fastfigure'}:
             # Copy the reachable package graph once, without pnpm's cyclic store links.
             modules = source / ('apps/server/node_modules' if args.app == 'fastwrite' else 'node_modules')

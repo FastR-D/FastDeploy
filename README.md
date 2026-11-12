@@ -7,7 +7,7 @@ FastRD 的 GitHub Actions 可复用发布流程。项目仓库执行测试、构
 | 项目 | 运行时 / 服务 | 就绪检查 | 持久化目录 |
 | --- | --- | --- | --- |
 | FastResearch | Node 24 / fastresearch | 8787 /api/health | /home/dev/FastResearch/data |
-| FastNews | Python 3.13 / fastnews | 8788 /api/health | /home/dev/FastNews，包括 .fastnews-data |
+| FastNews | Go + React / fastnews | 8788 /api/health | /home/dev/FastNews，包括 .fastnews-data |
 | FastCAS | Go 二进制 / fastcas | 8900 /health/ready | /home/dev/FastCAS/.local；原 PostgreSQL |
 | FastTask | Go + Node 24 sidecar / fasttask | 10000 /health/ready | /home/dev/FastTask/data |
 | FastRead | Python 3.12 / API + worker | 8584 /api/health，加两服务状态检查 | /home/dev/fastread-web-shared |
@@ -91,7 +91,7 @@ GitHub Free 组织的私有仓库无法使用组织 Secrets；私有调用项目
 - `release.tar.gz`：按 `config/apps.json` 中各项目的 artifact_roots 白名单打包；通过固定 SHA 的 `scripts/package.py` 产生。FastResearch 保留现有打包步骤。
 - `manifest.json`：`repository`、准确的 `sha`、`archive_sha256`。示例可见 FastResearch 的打包步骤。
 
-构建和部署目标均为 Ubuntu 24.04 x86_64。Python 依赖在 CI 安装到产物 `vendor/`，与线上 Python 次版本一致；Node 依赖或 Bun server bundle 也在 CI 准备，不在服务器安装依赖。FastTask 同时构建 sidecar 并携带 libfx 的生产依赖。FastCAS 在启动同一版本服务前执行其受锁保护、事务化的 migrate 命令；数据库备份独立保留，代码回滚不会逆向恢复数据库。打包时解引用链接与硬链接；服务端拒绝符号链接、硬链接、设备文件、重复路径、越界路径、`.env*`、`.git`、`.ssh` 和 `.fastdeploy`。解包后总大小上限 2 GiB。部署前后两次验证归属、SHA 和校验值，不在服务器重新 npm install/build。系统运行时版本、共享数据目录和必需应用文件均在切换前检查。
+构建和部署目标均为 Ubuntu 24.04 x86_64。FastNews 使用静态链接的 Go 二进制与 React dist，发布包不包含 Python 服务或 vendor。Python 应用的依赖在 CI 安装到产物 `vendor/`，与线上 Python 次版本一致；Node 依赖或 Bun server bundle 也在 CI 准备，不在服务器安装依赖。FastTask 同时构建 sidecar 并携带 libfx 的生产依赖。FastCAS 在启动同一版本服务前执行其受锁保护、事务化的 migrate 命令；数据库备份独立保留，代码回滚不会逆向恢复数据库。打包时解引用链接与硬链接；服务端拒绝符号链接、硬链接、设备文件、重复路径、越界路径、`.env*`、`.git`、`.ssh` 和 `.fastdeploy`。解包后总大小上限 2 GiB。部署前后两次验证归属、SHA 和校验值，不在服务器重新 npm install/build。系统运行时版本、共享数据目录和必需应用文件均在切换前检查。
 
 ## 首次上线顺序
 
@@ -165,3 +165,9 @@ FastFigure 的生产进程使用 `/home/dev/.local/share/fastdeploy/runtime/bun-
 `labs.fastrd.io` 保留原 AgentHost。Figure 和 FastLabs 预览登录使用 FastResearch 管理员凭据，网关不会把 Basic 凭据传给应用。Read/Write/News 的 CAS 回调改为各自域名，使用 `scripts/register_subdomain_redirects.sql` 在备份后追加白名单；旧回调及客户端凭证均保留。服务器部署使用 `v*-deploy.*` 标签，CAS/UI 包发布及 Read 桌面端/Docker 发布排除此类标签。
 
 FastUI 文档仅部署到 GitHub Pages，不在应用配置、服务器打包器或 SSH Secrets 仓库名单中。`ui.fastrd.io` 仅跳转到 Pages；服务器不再运行 FastUI 服务。
+
+### FastNews 原生部署
+
+FastNews profile 使用 `{release}/bin/fastnews serve`，只接收 `bin/fastnews` 和 `web/dist`。`FASTNEWS_WEB_DIR` 指向当前版本内的 dist；语料、归档报告与 SQLite 继续使用 `/home/dev/FastNews` 和其 `.fastnews-data`，不进入发布包。服务的环境注入仍使用通用 FastDeploy launcher，应用进程本身为 Go。旧业务 timer 已停用，由仓库 Go 数据工作流生成资料。
+
+FastNews 的 `ci.yml` 完成 Go / React / 浏览器检查并上传原生包，推送 `v*` 标签后调用本仓库固定提交的部署 workflow；普通 main 提交仍只验证。迁移前先对 SQLite 使用在线 backup，原生包激活失败时遵循同一发布事务恢复前态。归档数据与账号库独立于代码回滚。

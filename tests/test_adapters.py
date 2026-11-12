@@ -175,6 +175,49 @@ class PublicFilesTests(unittest.TestCase):
 
 
 class PackageTests(unittest.TestCase):
+    def test_fastnews_native_package_is_accepted_and_activates_release_paths(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'source'; source.mkdir()
+            for name in ['bin/fastnews', 'web/dist/index.html', 'web/dist/reports/handoff.js',
+                         'web/dist/reports/report.css', 'serve.py', 'vendor/private.py',
+                         '.fastnews-data/accounts.sqlite']:
+                path = source / name; path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('fixture')
+            (source / 'bin/fastnews').chmod(0o755)
+            environment = dict(os.environ, GITHUB_REPOSITORY='FastR-D/FastNews', GITHUB_SHA='a'*40)
+            artifact = root / 'artifact'
+            subprocess.run([sys.executable, str(ROOT / 'scripts/package.py'), 'fastnews',
+                '--source', str(source), '--output', str(artifact)], env=environment,
+                check=True, capture_output=True)
+            profile = json.loads((ROOT / 'config/apps.json').read_text())['fastnews']
+            extracted = root / 'extracted'
+            extract_archive(artifact / 'release.tar.gz', extracted, profile['artifact_roots'])
+            self.assertEqual({path.name for path in extracted.iterdir()}, {'bin', 'web'})
+            self.assertTrue(os.access(extracted / 'bin/fastnews', os.X_OK))
+            self.assertTrue(all((extracted / path).is_file() for path in profile['required_files']))
+            environment.update(DEPLOY_APP='fastnews', GITHUB_REF_NAME='v2026.11.12-deploy.1',
+                GITHUB_RUN_ID='123', ARTIFACT_DIR=str(artifact), BUNDLE_DIR=str(root / 'bundle'),
+                RUNTIME_ENV='\n'.join(f'{key}={value}' for key, value in profile['fixed_env'].items()),
+                RUNTIME_SECRETS='{}')
+            subprocess.run([sys.executable, str(ROOT / 'scripts/prepare.py')], env=environment,
+                check=True, capture_output=True)
+            bundle = root / 'bundle'
+            request = json.loads((bundle / 'request.json').read_text())
+            # Runtime availability is a production-host concern; exercise activation
+            # with the interpreter running this test, independently of its version.
+            request['profile']['runtime_check'] = [sys.executable, '-c', 'pass']
+            deployment = Deployment(root / 'home', request, Controller(), lambda url: None)
+            deployment.deploy(bundle)
+            runtime = json.loads((deployment.current / '.fastdeploy/runtime.json').read_text())
+            release = str(deployment.current.resolve())
+            self.assertEqual(runtime['services']['fastnews.service']['command'],
+                [release + '/bin/fastnews', 'serve'])
+            self.assertEqual(runtime['env']['FASTNEWS_WEB_DIR'], release + '/web/dist')
+            self.assertEqual(runtime['env']['FASTNEWS_DATA_DIR'], '/home/dev/FastNews/.fastnews-data')
+            self.assertNotIn('PYTHONPATH', runtime['env'])
+
     def test_pnpm_dependency_cycle_is_flattened_and_links_are_absent(self):
         import subprocess
         with tempfile.TemporaryDirectory() as directory:

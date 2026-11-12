@@ -15,7 +15,7 @@ INPUTS = {
     'fastcas': ['bin/fastcas', 'web/dist'],
     'fasttask': ['bin/fasttask', 'web/dist', 'web/node_modules', 'sidecar/dist'],
     'fastwrite': ['apps/server/dist', 'apps/web/dist', 'package.json'],
-    'fastread': ['backend/main.py', 'backend/app', 'fastread-frontend/dist', 'vendor'],
+    'fastread': ['bin/fastread', 'bin/pdftotext', 'bin/pdfinfo', 'lib', 'fastread-frontend/dist'],
     'fastinsight': ['fastinsight', 'feishu_bot.py', 'scripts', 'assets', 'vendor'],
     'fastlabs': ['server.py', 'agent_adapter.py', 'fastcas_pairing.py', 'feishu_gateway.py',
                  'feishu_help.py', 'web', 'skills', 'schemas', 'vendor'],

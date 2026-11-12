@@ -10,7 +10,7 @@ FastRD 的 GitHub Actions 可复用发布流程。项目仓库执行测试、构
 | FastNews | Go + React / fastnews | 8788 /api/health | /home/dev/FastNews，包括 .fastnews-data |
 | FastCAS | Go 二进制 / fastcas | 8900 /health/ready | /home/dev/FastCAS/.local；原 PostgreSQL |
 | FastTask | Go + Node 24 sidecar / fasttask | 10000 /health/ready | /home/dev/FastTask/data |
-| FastRead | Python 3.12 / API + worker | 8584 /api/health，加两服务状态检查 | /home/dev/fastread-web-shared |
+| FastRead | Go + React / API + worker | 8584 /api/health，加两服务状态检查 | /home/dev/fastread-web-shared |
 | FastWrite | Bun 1.4.0 / fastdeploy-fastwrite | 3003 /api/health | /home/dev/fastwrite-shared/data |
 | FastInsight | Python 3.12 / fastinsight-feishu | 进程连续 10 秒存活，不发送验证消息 | /home/dev/fastinsight，含原 roster 和待确认任务 |
 | FastLabs | Python 3.12 / fastdeploy-fastlabs | 8789 /api/health | /home/dev/fastlabs-shared/data |

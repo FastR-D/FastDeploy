@@ -198,55 +198,43 @@
     "legacy_app": "read",
     "unit": "fastdeploy-fastread-api.service",
     "command": [
-      "/usr/bin/python3",
-      "-m",
-      "uvicorn",
-      "main:app",
-      "--host",
-      "127.0.0.1",
-      "--port",
-      "8584",
-      "--no-proxy-headers"
+      "{release}/bin/fastread",
+      "serve",
+      "--listen",
+      "127.0.0.1:8584"
     ],
     "services": [
       {
         "unit": "fastdeploy-fastread-api.service",
         "command": [
-          "/usr/bin/python3",
-          "-m",
-          "uvicorn",
-          "main:app",
-          "--host",
-          "127.0.0.1",
-          "--port",
-          "8584",
-          "--no-proxy-headers"
-        ],
-        "cwd": "{release}/backend"
+          "{release}/bin/fastread",
+          "serve",
+          "--listen",
+          "127.0.0.1:8584"
+        ]
       },
       {
         "unit": "fastdeploy-fastread-worker.service",
         "command": [
-          "/usr/bin/python3",
-          "-m",
-          "app.web.worker",
+          "{release}/bin/fastread",
+          "worker",
           "--concurrency",
           "2"
-        ],
-        "cwd": "{release}/backend"
+        ]
       }
     ],
     "health_url": "http://127.0.0.1:8584/api/health",
     "artifact_roots": [
-      "backend",
+      "bin",
       "fastread-frontend",
-      "vendor"
+      "lib"
     ],
     "required_files": [
-      "backend/main.py",
+      "bin/fastread",
+      "bin/pdftotext",
+      "bin/pdfinfo",
       "fastread-frontend/dist/index.html",
-      "fastread-frontend/dist/vendor/pdfjs/pdf.worker.js",
-      "vendor/uvicorn/__init__.py"
+      "fastread-frontend/dist/vendor/pdfjs/pdf.worker.js"
     ],
     "required_env": [
       "FASTREAD_WEB_ROOT",
@@ -261,14 +249,16 @@
       "/home/dev/fastread-web-shared/compatibility"
     ],
     "runtime_check": [
-      "/usr/bin/python3",
-      "-c",
-      "import sys; assert sys.version_info >= (3,12)"
+      "/usr/bin/test",
+      "-d",
+      "/home/dev/fastread-web-shared/data"
     ],
     "system_legacy": "fastread",
     "release_env": {
-      "PYTHONPATH": "{release}/vendor",
-      "FASTREAD_WEB_DIST": "{release}/fastread-frontend/dist"
+      "FASTREAD_FRONTEND_DIST": "{release}/fastread-frontend/dist",
+      "FASTREAD_PDFTOTEXT": "{release}/bin/pdftotext",
+      "FASTREAD_PDFINFO": "{release}/bin/pdfinfo",
+      "LD_LIBRARY_PATH": "{release}/lib"
     },
     "public_static": {
       "root": "/var/www/fastread-current",

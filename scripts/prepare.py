@@ -41,8 +41,11 @@ def main():
     if not re.fullmatch(r"[0-9a-f]{40}", sha):
         raise ValueError("invalid commit SHA")
     environment = merge_env(os.environ["RUNTIME_ENV"], os.environ["RUNTIME_SECRETS"])
+    postgres_key = profile.get("postgres_env")
+    if postgres_key in environment:
+        raise ValueError("PostgreSQL credentials are loaded on the deployment server")
     for key in profile["required_env"]:
-        if not environment.get(key):
+        if key != postgres_key and not environment.get(key):
             raise ValueError(f"missing required environment key: {key}")
     for key, value in profile["fixed_env"].items():
         if environment.get(key) != value:

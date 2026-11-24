@@ -7,6 +7,8 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import stat
+from urllib.parse import urlsplit
 import shutil
 import signal
 import subprocess
@@ -332,6 +334,31 @@ class Deployment:
             self.transaction.unlink()
             print("Recovered interrupted transaction")
 
+    def runtime_environment(self):
+        environment = dict(self.request["env"])
+        key = self.profile.get("postgres_env")
+        if not key:
+            return environment
+        if key in environment:
+            raise DeployError("PostgreSQL credentials must be configured on the deployment server")
+        path = self.home / ".local/state/fastdeploy/postgres" / self.app
+        try:
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+            with os.fdopen(fd, encoding="utf-8") as stream:
+                info = os.fstat(stream.fileno())
+                if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+                    raise DeployError("PostgreSQL configuration must be a private file owned by the deployment user")
+                value = stream.read(8192).strip()
+        except OSError:
+            raise DeployError("server-side PostgreSQL configuration is missing or unreadable") from None
+        url = urlsplit(value)
+        if (url.scheme != "postgresql" or url.hostname != "127.0.0.1" or url.port != 5432
+                or url.username != self.app or url.path != "/" + self.app or not url.password
+                or "\n" in value):
+            raise DeployError("server-side PostgreSQL configuration is invalid")
+        environment[key] = value
+        return environment
+
     def deploy(self, bundle):
         request = self.request
         if self.watermark.exists() and request["run_id"] < int(self.watermark.read_text()):
@@ -341,15 +368,16 @@ class Deployment:
         archive = bundle / "release.tar.gz"
         if sha256_file(archive) != request["archive_sha256"]:
             raise ValueError("archive checksum mismatch")
+        environment = self.runtime_environment()
         for key in self.profile["required_env"]:
-            if not request["env"].get(key):
+            if not environment.get(key):
                 raise ValueError("missing required runtime variable")
         for key, value in self.profile["fixed_env"].items():
-            if request["env"].get(key) != value:
+            if environment.get(key) != value:
                 raise ValueError("runtime variable conflicts with profile")
         previous = self.snapshot()
         identity = {key: request[key] for key in ["tag", "sha", "run_id", "archive_sha256"]}
-        config_digest = hashlib.sha256(json.dumps(request["env"], sort_keys=True).encode()).hexdigest()
+        config_digest = hashlib.sha256(json.dumps(environment, sort_keys=True).encode()).hexdigest()
         identity["config_sha256"] = config_digest
         active = previous["active"]
         if active:
@@ -379,7 +407,7 @@ class Deployment:
         settings = destination / ".fastdeploy"
         settings.mkdir(mode=0o700)
         shutil.copyfile(bundle / "launch.py", settings / "launch.py")
-        runtime_env = dict(request["env"])
+        runtime_env = environment
         # Expand only trusted profile templates, never user-provided values or Secrets.
         runtime_env.update({key: value.replace("{release}", str(destination)) for key, value in self.profile.get("release_env", {}).items()})
         runtime = {"env": runtime_env, "command": self.profile.get("command", [])}
@@ -432,6 +460,13 @@ class Deployment:
             raise DeployError("active release changed; refusing rollback")
         previous_file = self.releases / active["release"] / ".fastdeploy/previous.json"
         previous = json.loads(previous_file.read_text())
+        if key := self.profile.get("postgres_env"):
+            previous_link = previous.get("current")
+            if not previous_link:
+                raise DeployError("rollback to a file-backed release requires a coordinated data restore")
+            previous_runtime = self.root / previous_link / ".fastdeploy/runtime.json"
+            if not previous_runtime.is_file() or not json.loads(previous_runtime.read_text())["env"].get(key):
+                raise DeployError("rollback to a file-backed release requires a coordinated data restore")
         current_snapshot = self.snapshot()
         write_json(self.transaction, current_snapshot)
         try:

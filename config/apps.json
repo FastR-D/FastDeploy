@@ -4,21 +4,23 @@
     "legacy_app": "research",
     "unit": "fastresearch.service",
     "command": [
-      "/usr/bin/node",
-      "server/index.mjs"
+      "{release}/bin/fastresearch"
     ],
     "health_url": "http://127.0.0.1:8787/api/health",
     "required_files": [
-      "server/index.mjs",
-      "dist/index.html",
-      "node_modules/@fastrd/fastcas/package.json"
+      "bin/fastresearch",
+      "dist/index.html"
     ],
     "required_env": [
       "HOST",
       "PORT",
       "FASTRESEARCH_PUBLIC_URL",
       "FASTRESEARCH_DATA_DIR",
-      "FASTRESEARCH_JWT_SECRET"
+      "FASTRESEARCH_FASTCAS_ISSUER",
+      "FASTRESEARCH_FASTCAS_CLIENT_ID",
+      "FASTRESEARCH_FASTCAS_CLIENT_SECRET",
+      "FASTRESEARCH_FASTCAS_REDIRECT_URI",
+      "FASTRESEARCH_DATABASE_URL"
     ],
     "fixed_env": {
       "HOST": "127.0.0.1",
@@ -28,11 +30,27 @@
     "shared_paths": [
       "/home/dev/FastResearch/data"
     ],
+    "artifact_roots": [
+      "bin",
+      "dist"
+    ],
+    "release_env": {
+      "FASTRESEARCH_STATIC_DIR": "{release}/dist"
+    },
+    "services": [
+      {
+        "unit": "fastresearch.service",
+        "command": [
+          "{release}/bin/fastresearch"
+        ]
+      }
+    ],
     "runtime_check": [
-      "/usr/bin/node",
-      "-e",
-      "if (Number(process.versions.node.split('.')[0]) !== 24) process.exit(1)"
-    ]
+      "/usr/bin/python3",
+      "-c",
+      "import sys; assert sys.version_info >= (3,12)"
+    ],
+    "postgres_env": "FASTRESEARCH_DATABASE_URL"
   },
   "fastnews": {
     "repository": "FastR-D/FastNews",
@@ -66,7 +84,8 @@
       "FASTNEWS_HOST",
       "FASTNEWS_PORT",
       "FASTNEWS_ROOT",
-      "FASTNEWS_DATA_DIR"
+      "FASTNEWS_DATA_DIR",
+      "FASTNEWS_DATABASE_URL"
     ],
     "fixed_env": {
       "FASTNEWS_HOST": "127.0.0.1",
@@ -84,7 +103,8 @@
       "/usr/bin/python3",
       "-c",
       "import sys; assert sys.version_info >= (3,12)"
-    ]
+    ],
+    "postgres_env": "FASTNEWS_DATABASE_URL"
   },
   "fastcas": {
     "repository": "FastR-D/FastCAS",
@@ -172,7 +192,8 @@
     "required_env": [
       "FASTTASK_LISTEN",
       "FASTTASK_PORT",
-      "FASTTASK_DATABASE"
+      "FASTTASK_DATABASE",
+      "FASTTASK_DATABASE_URL"
     ],
     "fixed_env": {
       "FASTTASK_LISTEN": "127.0.0.1",
@@ -191,7 +212,8 @@
       "FASTTASK_WEB_DIST": "{release}/web/dist",
       "FASTTASK_SIDECAR_ENTRY": "{release}/sidecar/dist/host.mjs",
       "FASTTASK_SIDECAR_NODE_PATH": "/usr/bin/node"
-    }
+    },
+    "postgres_env": "FASTTASK_DATABASE_URL"
   },
   "fastread": {
     "repository": "FastR-D/FastRead",
@@ -238,7 +260,8 @@
     ],
     "required_env": [
       "FASTREAD_WEB_ROOT",
-      "FASTREAD_DATA_ROOT"
+      "FASTREAD_DATA_ROOT",
+      "FASTREAD_DATABASE_URL"
     ],
     "fixed_env": {
       "FASTREAD_WEB_ROOT": "/home/dev/fastread-web-shared/data",
@@ -263,7 +286,8 @@
     "public_static": {
       "root": "/var/www/fastread-current",
       "source": "fastread-frontend/dist"
-    }
+    },
+    "postgres_env": "FASTREAD_DATABASE_URL"
   },
   "fastwrite": {
     "repository": "FastR-D/FastWrite",
@@ -295,7 +319,8 @@
     ],
     "required_env": [
       "FASTWRITE_PORT",
-      "FASTWRITE_DATA_DIR"
+      "FASTWRITE_DATA_DIR",
+      "FASTWRITE_POSTGRES_URL"
     ],
     "fixed_env": {
       "FASTWRITE_PORT": "3003",
@@ -313,8 +338,10 @@
     "release_env": {
       "FASTWRITE_WEB_DIR": "{release}/apps/web/dist",
       "FASTWRITE_SKILLS_DIR": "{release}/apps/server/dist/skills",
-      "FASTWRITE_TEMPLATE_DIR": "{release}/apps/server/dist/templates/bundled"
-    }
+      "FASTWRITE_TEMPLATE_DIR": "{release}/apps/server/dist/templates/bundled",
+      "FASTWRITE_POSTGRES_MODE": "cutover"
+    },
+    "postgres_env": "FASTWRITE_POSTGRES_URL"
   },
   "fastinsight": {
     "repository": "FastR-D/FastInsight",

@@ -208,6 +208,12 @@ class PackageTests(unittest.TestCase):
             # Runtime availability is a production-host concern; exercise activation
             # with the interpreter running this test, independently of its version.
             request['profile']['runtime_check'] = [sys.executable, '-c', 'pass']
+            postgres_dir = root / 'home/.local/state/fastdeploy/postgres'
+            postgres_dir.mkdir(parents=True)
+            credential = postgres_dir / 'fastnews'
+            credential.write_text('postgresql://fastnews:private@127.0.0.1:5432/fastnews')
+            credential.chmod(0o600)
+            self.assertNotIn('FASTNEWS_DATABASE_URL', request['env'])
             deployment = Deployment(root / 'home', request, Controller(), lambda url: None)
             deployment.deploy(bundle)
             runtime = json.loads((deployment.current / '.fastdeploy/runtime.json').read_text())
@@ -217,6 +223,7 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(runtime['env']['FASTNEWS_WEB_DIR'], release + '/web/dist')
             self.assertEqual(runtime['env']['FASTNEWS_DATA_DIR'], '/home/dev/FastNews/.fastnews-data')
             self.assertNotIn('PYTHONPATH', runtime['env'])
+            self.assertEqual(runtime['env']['FASTNEWS_DATABASE_URL'], credential.read_text())
 
     def test_pnpm_dependency_cycle_is_flattened_and_links_are_absent(self):
         import subprocess

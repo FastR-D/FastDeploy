@@ -6,7 +6,7 @@ FastRD 的 GitHub Actions 可复用发布流程。项目仓库执行测试、构
 
 | 项目 | 运行时 / 服务 | 就绪检查 | 持久化目录 |
 | --- | --- | --- | --- |
-| FastResearch | Node 24 / fastresearch | 8787 /api/health | /home/dev/FastResearch/data |
+| FastResearch | Go 二进制 / fastresearch | 8787 /api/health | PostgreSQL `fastresearch`，/home/dev/FastResearch/data |
 | FastNews | Go + React / fastnews | 8788 /api/health | /home/dev/FastNews，包括 .fastnews-data |
 | FastCAS | Go 二进制 / fastcas | 8900 /health/ready | /home/dev/FastCAS/.local；原 PostgreSQL |
 | FastTask | Go + Node 24 sidecar / fasttask | 10000 /health/ready | /home/dev/FastTask/data |
@@ -17,6 +17,12 @@ FastRD 的 GitHub Actions 可复用发布流程。项目仓库执行测试、构
 | FastFigure | Bun 1.4.0 / fastdeploy-fastfigure | 5178 /api/health | /home/dev/fastfigure-shared/components |
 
 服务仅监听 loopback。现有泛域名 DNS/TLS 配合 FastResearch 的固定 Host 路由提供独立预览入口，无需开放应用端口。FastLabs/FastFigure 的本机 Agent 接口由管理员 Basic 登录和 Origin 检查保护；FastInsight 的进程检查不发送飞书验证消息。
+
+## PostgreSQL 数据库
+
+FastResearch、FastRead、FastTask、FastNews、FastWrite 各有一个同名数据库和登录角色，使用现有实例 `127.0.0.1:5432`。各项目 profile 的 `postgres_env` 定义运行时连接变量。发布器从部署用户私有目录 `~/.local/state/fastdeploy/postgres/<app>` 读取 DSN。
+
+首次切换时使用 `scripts/provision_postgres.py` 配置数据库，运行应用的迁移命令初始化目标 schema，再用 `scripts/import_sqlite_postgres.py` 验证预览。在源应用停止写入后取 SQLite 一致性备份并以 `--apply` 导入。FastWrite 使用 `storage:postgres:migrate --commit` 导入 JSON 快照。切换后恢复到文件存储需要独立的数据回迁步骤。
 
 ## 项目部署 Action 如何写 env
 

@@ -81,14 +81,14 @@ class ConfigurationTests(unittest.TestCase):
             environment = dict(os.environ, DEPLOY_APP="fastresearch", GITHUB_REPOSITORY=manifest["repository"],
                 GITHUB_SHA=manifest["sha"], GITHUB_REF_NAME="v1.0.0", GITHUB_RUN_ID="123",
                 ARTIFACT_DIR=str(artifact), BUNDLE_DIR=str(root / "bundle"),
-                RUNTIME_ENV="HOST=127.0.0.1\nPORT=8787\nFASTRESEARCH_PUBLIC_URL=https://fastrd.io\nFASTRESEARCH_DATA_DIR=/home/dev/FastResearch/data",
-                RUNTIME_SECRETS=json.dumps({"FASTRESEARCH_JWT_SECRET": password}))
+                RUNTIME_ENV="HOST=127.0.0.1\nPORT=8787\nFASTRESEARCH_PUBLIC_URL=https://fastrd.io\nFASTRESEARCH_DATA_DIR=/home/dev/FastResearch/data\nFASTRESEARCH_FASTCAS_ISSUER=https://cas.example.test\nFASTRESEARCH_FASTCAS_CLIENT_ID=fastresearch\nFASTRESEARCH_FASTCAS_REDIRECT_URI=https://example.test/callback",
+                RUNTIME_SECRETS=json.dumps({"FASTRESEARCH_FASTCAS_CLIENT_SECRET": password}))
             result = subprocess.run([sys.executable, str(ROOT / "scripts/prepare.py")],
                                     env=environment, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             request = root / "bundle/request.json"
             self.assertEqual(request.stat().st_mode & 0o777, 0o600)
-            self.assertEqual(json.loads(request.read_text())["env"]["FASTRESEARCH_JWT_SECRET"], password)
+            self.assertEqual(json.loads(request.read_text())["env"]["FASTRESEARCH_FASTCAS_CLIENT_SECRET"], password)
             self.assertNotIn(password, result.stdout + result.stderr)
             environment["BUNDLE_DIR"] = str(root / "invalid")
             manifest["sha"] = "b" * 40

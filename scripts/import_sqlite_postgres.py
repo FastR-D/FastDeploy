@@ -43,6 +43,8 @@ SELECT COALESCE(json_agg(c ORDER BY table_name,ordinal_position),'[]') FROM (
 def csv_field(value, datatype):
     if value is None:
         return r"\N"
+    if datatype == "bytea" and isinstance(value, str):
+        value = value.encode("utf-8")
     if isinstance(value, bytes):
         if datatype != "bytea":
             raise ValueError("binary SQLite field requires a bytea target")

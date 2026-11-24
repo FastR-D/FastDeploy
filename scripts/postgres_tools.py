@@ -1,7 +1,7 @@
 """psql access without putting database credentials in arguments or output."""
 
 import os
-from pathlib import Path
+import re
 import subprocess
 from urllib.parse import parse_qs, unquote, urlsplit
 
@@ -20,15 +20,17 @@ def psql_env(dsn):
 
 
 def run_psql(binary, env, statements):
-    result = subprocess.run([str(binary), "-wXqAt", "-v", "ON_ERROR_STOP=1"],
+    result = subprocess.run([str(binary), "-wXqAt", "-v", "ON_ERROR_STOP=1", "-v", "VERBOSITY=verbose"],
                             input=statements, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             encoding="utf-8", env=env, timeout=300)
     if result.returncode:
         # Errors from PostgreSQL can echo credentials or imported row contents.
-        error_lines = [line for line in result.stderr.splitlines() if "ERROR:" in line]
-        if error_lines and os.environ.get("FASTDEPLOY_DB_DEBUG") == "1" and Path(binary).resolve().is_file():
-            raise RuntimeError(error_lines[0])
-        raise RuntimeError("PostgreSQL operation failed") from None
+        state = re.search(r"ERROR:\s+([A-Z0-9]{5}):", result.stderr)
+        location = re.search(r"CONTEXT:\s+COPY (import_[a-z0-9_]+), line ([0-9]+)", result.stderr)
+        details = f" ({state[1]})" if state else ""
+        if location:
+            details += f" in {location[1]}, row {location[2]}"
+        raise RuntimeError("PostgreSQL operation failed" + details) from None
     return result.stdout
 
 

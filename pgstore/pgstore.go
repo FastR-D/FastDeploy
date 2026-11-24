@@ -96,7 +96,7 @@ func (c connection) ResetSession(ctx context.Context) error {
 }
 
 func (c connection) IsValid() bool {
-	return c.Conn.(driver.Validator).IsValid()
+	return !c.Conn.(*stdlib.Conn).Conn().IsClosed()
 }
 
 func rebind(query string) string {

@@ -32,7 +32,7 @@ def sqlite_snapshot(source, destination):
 def catalog(psql, env):
     return json.loads(run_psql(psql, env, """
 SELECT COALESCE(json_agg(c ORDER BY table_name,ordinal_position),'[]') FROM (
- SELECT table_name,column_name,data_type,is_identity
+ SELECT table_name,column_name,data_type,is_identity,ordinal_position
  FROM information_schema.columns
  WHERE table_schema=current_schema() AND (table_schema,table_name) IN (
     SELECT table_schema,table_name FROM information_schema.tables WHERE table_type='BASE TABLE')

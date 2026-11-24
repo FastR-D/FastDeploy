@@ -28,6 +28,9 @@ def run_psql(binary, env, statements):
         state = re.search(r"ERROR:\s+([A-Z0-9]{5}):", result.stderr)
         location = re.search(r"CONTEXT:\s+COPY (import_[a-z0-9_]+), line ([0-9]+)", result.stderr)
         details = f" ({state[1]})" if state else ""
+        column = re.search(r'ERROR:\s+42703: column "([a-z0-9_]+)" does not exist', result.stderr)
+        if column:
+            details += f"; missing column {column[1]}"
         if location:
             details += f" in {location[1]}, row {location[2]}"
         raise RuntimeError("PostgreSQL operation failed" + details) from None

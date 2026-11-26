@@ -31,6 +31,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   deploy:
@@ -63,6 +64,8 @@ jobs:
       - name: Upload and activate
         env:
           BUNDLE_DIR: ${{ runner.temp }}/fastdeploy-bundle
+          GITHUB_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: ${{ inputs.artifact-name }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_PORT: ${{ secrets.SSH_PORT }}
           SSH_USER: ${{ secrets.SSH_USER }}

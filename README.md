@@ -31,6 +31,9 @@ FastResearch、FastRead、FastTask、FastNews、FastWrite 各有一个同名数�
 ```yaml
 deploy:
   needs: validate
+  permissions:
+    contents: read
+    actions: read
   if: startsWith(github.ref, 'refs/tags/v')
   uses: FastR-D/FastDeploy/.github/workflows/deploy.yml@v2
   with:
@@ -59,6 +62,14 @@ deploy:
 `runtime-env` 按行解析 `KEY=value`，忽略空行和整行注释，值按字面处理，不执行 shell、变量展开或 dotenv 转义。不要在值两侧添加作为语法的引号。复杂 JSON、含前后空格、多行内容放进 `runtime-secrets`，使用 `toJSON` 序列化。普通配置和密钥不能出现同名键，密钥不能为空。`VITE_*` 只能是公开配置，在调用方构建 job 的 `env` 中设置；仅传运行时不会改变已经构建的网页。
 
 最终配置保存在各版本的 `.fastdeploy/runtime.json`，权限 `0600`。Python 启动器将其注入进程环境，再执行应用。它清除旧 systemd 环境继承，不生成可能改变密码字符的 `.env`，不覆盖原有线上 `.env.production`。应用继续使用原来的绝对数据目录。所有版本目录仅部署用户可访问；配置不进入 Actions artifact 或 cache。
+
+## 产物传输与诊断
+
+部署 job 需要 `contents: read` 和 `actions: read`；复用工作流的调用方也必须在该 job 声明这两项权限。共享工作流按 `artifact-name` 查找当前 run 的产物，通过 GitHub API 获取短时下载地址。SSH 只上传配置和部署脚本，发布包由服务器通过 HTTPS 下载，避免整个包经 runner 的 SSH 长连接上传并在 600 秒后超时。
+
+下载地址仅通过加密 stdin 传递，不写入命令行或日志；GitHub token 不发送到服务器。服务器校验 artifact 文件名单、仓库、提交 SHA 和压缩包校验值后，才进入原有激活与回滚流程。回滚不下载产物，仍只通过 SSH 发送小型控制包。
+
+日志分别记录 `artifact_url`、`package`、`ssh_probe`、`upload`、`download_artifact`、`activate` 和 `cleanup`，长步骤每 15 秒报告进度。错误仅输出固定分类和耗时，保留私密配置。下载或上传失败不会开始激活。
 
 ## SSH 与项目密钥
 

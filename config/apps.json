@@ -88,11 +88,12 @@
     "fixed_env": {
       "FASTNEWS_HOST": "127.0.0.1",
       "FASTNEWS_PORT": "8788",
-      "FASTNEWS_ROOT": "/home/dev/FastNews",
+      "FASTNEWS_ROOT": "/home/dev/.local/share/fastnews/corpus",
       "FASTNEWS_DATA_DIR": "/home/dev/FastNews/.fastnews-data"
     },
     "shared_paths": [
-      "/home/dev/FastNews"
+      "/home/dev/FastNews",
+      "/home/dev/.local/share/fastnews/corpus"
     ],
     "release_env": {
       "FASTNEWS_WEB_DIR": "{release}/web/dist"

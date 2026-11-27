@@ -202,4 +202,4 @@ python3 scripts/provision_fetch_relay.py --allowlist config/fastnews-fetch-allow
 
 FastNews 的 GitHub `production` Environment 保存 `FASTNEWS_RELAY_SSH_HOST`、`FASTNEWS_RELAY_SSH_PORT`、`FASTNEWS_RELAY_SSH_USER`、`FASTNEWS_RELAY_SSH_KNOWN_HOSTS`、`FASTNEWS_RELAY_SSH_PRIVATE_KEY`。这些 Secrets 用于灾难恢复，不打入发布包、不下发给浏览器；正常 HTTPS 发布使用服务器已经配置的凭据。轮换应另行生成新密钥，先验证新授权，再更新 Secrets 并撤销旧公钥；本脚本日常执行不会隐式轮换。
 
-FastNews 信源配置的 `transport` 可为 `direct`、`relay`、`auto`。只有单个选定信源走跳板机，不设置系统全局代理；`auto` 不对 401/403/429 进行换出口重试。添加采集端点时先更新 allowlist 并实测，再启用信源。仍受访问限制或需要第三方账号的来源保留待接入。
+FastNews 信源配置的 `transport` 可为 `direct`、`relay`、`auto`。只有单个选定信源走跳板机，不设置系统全局代理；`auto` 不对 401/403/429 进行换出口重试。信源目录纳入采集时由管理员选择直连或新加坡，选择持久化并用于后续定时采集。allowlist 覆盖当前 36 个已核验订阅端点，默认线路不因此改变。添加采集端点时先更新 allowlist 并实测，再启用信源。仍受访问限制或需要第三方账号的来源保留待接入。

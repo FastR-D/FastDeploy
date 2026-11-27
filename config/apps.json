@@ -89,11 +89,13 @@
       "FASTNEWS_HOST": "127.0.0.1",
       "FASTNEWS_PORT": "8788",
       "FASTNEWS_ROOT": "/home/dev/.local/share/fastnews/corpus",
-      "FASTNEWS_DATA_DIR": "/home/dev/FastNews/.fastnews-data"
+      "FASTNEWS_DATA_DIR": "/home/dev/FastNews/.fastnews-data",
+      "FASTNEWS_FETCH_RELAY_SSH_CONFIG": "/home/dev/.config/fastnews-fetch/ssh_config"
     },
     "shared_paths": [
       "/home/dev/FastNews",
-      "/home/dev/.local/share/fastnews/corpus"
+      "/home/dev/.local/share/fastnews/corpus",
+      "/home/dev/.config/fastnews-fetch"
     ],
     "release_env": {
       "FASTNEWS_WEB_DIR": "{release}/web/dist"
@@ -101,7 +103,7 @@
     "runtime_check": [
       "/usr/bin/python3",
       "-c",
-      "import sys; assert sys.version_info >= (3,12)"
+      "import sys, pathlib; assert sys.version_info >= (3,12); assert pathlib.Path(\"/usr/bin/ssh\").is_file(); assert pathlib.Path(\"/home/dev/.config/fastnews-fetch/ssh_config\").is_file()"
     ],
     "postgres_env": "FASTNEWS_DATABASE_URL"
   },

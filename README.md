@@ -188,3 +188,18 @@ FastUI 文档仅部署到 GitHub Pages，不在应用配置、服务器打包器
 FastNews profile 使用 `{release}/bin/fastnews serve`，只接收 `bin/fastnews` 和 `web/dist`。`FASTNEWS_WEB_DIR` 指向当前版本内的 dist；语料、归档报告与 SQLite 继续使用 `/home/dev/FastNews` 和其 `.fastnews-data`，不进入发布包。服务的环境注入仍使用通用 FastDeploy launcher，应用进程本身为 Go。旧业务 timer 已停用，由仓库 Go 数据工作流生成资料。
 
 FastNews 的 `ci.yml` 完成 Go / React / 浏览器检查并上传原生包，推送 `v*` 标签后调用本仓库固定提交的部署 workflow；普通 main 提交仍只验证。迁移前先对 SQLite 使用在线 backup，原生包激活失败时遵循同一发布事务恢复前态。归档数据与账号库独立于代码回滚。
+
+### FastNews 新加坡采集账号
+
+`fastnews-fetch` 是专用 SSH 强制命令账号：只能经 HTTPS 读取 `config/fastnews-fetch-allowlist.json` 中的公开订阅端点，禁止终端、命令执行与端口/agent 转发。程序和 allowlist 由跳板机 root 管理，账号无 sudo 权限；每次请求限时、限大小，重定向仍须命中 allowlist，拒绝私网目标。普通运维 SSH 账号不变。
+
+```bash
+python3 scripts/provision_fetch_relay.py --allowlist config/fastnews-fetch-allowlist.json
+python3 scripts/provision_fetch_relay.py --allowlist config/fastnews-fetch-allowlist.json --apply
+```
+
+使用已核验主机公钥的本地 `fastrd-proxy` 和 `fastrd` SSH 别名。脚本首次生成独立 Ed25519 密钥，后续复用应用机现有密钥；私钥仅通过 stdin 传输，不写日志。应用机持久化到 `~/.config/fastnews-fetch/`（目录 0700、文件 0600），本地临时副本完成后删除。生产 profile 固定 `FASTNEWS_FETCH_RELAY_SSH_CONFIG` 路径，发布及回滚都保留该目录。
+
+FastNews 的 GitHub `production` Environment 保存 `FASTNEWS_RELAY_SSH_HOST`、`FASTNEWS_RELAY_SSH_PORT`、`FASTNEWS_RELAY_SSH_USER`、`FASTNEWS_RELAY_SSH_KNOWN_HOSTS`、`FASTNEWS_RELAY_SSH_PRIVATE_KEY`。这些 Secrets 用于灾难恢复，不打入发布包、不下发给浏览器；正常 HTTPS 发布使用服务器已经配置的凭据。轮换应另行生成新密钥，先验证新授权，再更新 Secrets 并撤销旧公钥；本脚本日常执行不会隐式轮换。
+
+FastNews 信源配置的 `transport` 可为 `direct`、`relay`、`auto`。只有单个选定信源走跳板机，不设置系统全局代理；`auto` 不对 401/403/429 进行换出口重试。添加采集端点时先更新 allowlist 并实测，再启用信源。仍受访问限制或需要第三方账号的来源保留待接入。

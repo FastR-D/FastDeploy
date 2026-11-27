@@ -180,8 +180,7 @@ class PackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / 'source'; source.mkdir()
-            for name in ['bin/fastnews', 'web/dist/index.html', 'web/dist/reports/handoff.js',
-                         'web/dist/reports/report.css', 'serve.py', 'vendor/private.py',
+            for name in ['bin/fastnews', 'web/dist/index.html', 'serve.py', 'vendor/private.py',
                          '.fastnews-data/accounts.sqlite']:
                 path = source / name; path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('fixture')
@@ -196,6 +195,7 @@ class PackageTests(unittest.TestCase):
             extract_archive(artifact / 'release.tar.gz', extracted, profile['artifact_roots'])
             self.assertEqual({path.name for path in extracted.iterdir()}, {'bin', 'web'})
             self.assertTrue(os.access(extracted / 'bin/fastnews', os.X_OK))
+            self.assertFalse((extracted / 'web/dist/reports').exists())
             self.assertTrue(all((extracted / path).is_file() for path in profile['required_files']))
             environment.update(DEPLOY_APP='fastnews', GITHUB_REF_NAME='v2026.11.12-deploy.1',
                 GITHUB_RUN_ID='123', ARTIFACT_DIR=str(artifact), BUNDLE_DIR=str(root / 'bundle'),

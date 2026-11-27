@@ -76,9 +76,7 @@
     ],
     "required_files": [
       "bin/fastnews",
-      "web/dist/index.html",
-      "web/dist/reports/handoff.js",
-      "web/dist/reports/report.css"
+      "web/dist/index.html"
     ],
     "required_env": [
       "FASTNEWS_HOST",

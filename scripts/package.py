@@ -53,7 +53,12 @@ def package_ppt(source, archive):
         entries[name] = origin
         if origin.is_dir():
             children = list(origin.iterdir())
-            skip = set(ignored(str(origin), [p.name for p in children])) | {'coverage', '.turbo', '.vite', 'tests', 'test', '__tests__', '.fastppt', '.fastppt-data'}
+            if 'node_modules' in origin.relative_to(source).parts:
+                # Published dependencies may use test/ as runtime data (Iconify
+                # emoji parsers do). Preserve their exact package contents.
+                skip = {p.name for p in children if p.name in {'.git', '.env', '.fastdeploy'} or p.name.startswith('.env.')}
+            else:
+                skip = set(ignored(str(origin), [p.name for p in children])) | {'coverage', '.turbo', '.vite', 'tests', 'test', '__tests__', '.fastppt', '.fastppt-data'}
             for child in children:
                 if child.name not in skip:
                     visit(child, name + '/' + child.name)

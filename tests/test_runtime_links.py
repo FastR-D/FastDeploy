@@ -38,3 +38,25 @@ class RuntimeLinksTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     restore_runtime_links(root, 'runtime-links.json')
                 self.assertFalse((root / 'node_modules').exists())
+
+class PublishedDependencyTests(unittest.TestCase):
+    def test_runtime_test_directory_is_not_pruned_from_dependencies(self):
+        import tarfile
+        from unittest.mock import patch
+        from package import INPUTS, package_ppt
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / 'source'
+            runtime = source / 'node_modules/iconify/lib/emoji/test/parse.js'
+            runtime.parent.mkdir(parents=True)
+            runtime.write_text('export const parse = () => true')
+            workspace_test = source / 'packages/example/test/check.ts'
+            workspace_test.parent.mkdir(parents=True)
+            workspace_test.write_text('test fixture')
+            archive = root / 'runtime.tar.gz'
+            with patch.dict(INPUTS, {'fastppt': ['node_modules', 'packages']}):
+                package_ppt(source, archive)
+            with tarfile.open(archive) as tar:
+                names = tar.getnames()
+                self.assertIn('node_modules/iconify/lib/emoji/test/parse.js', names)
+                self.assertNotIn('packages/example/test/check.ts', names)

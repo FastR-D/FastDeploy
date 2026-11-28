@@ -2,6 +2,7 @@
 """Package tested, explicit runtime inputs. Never include live data or dotenv files."""
 import argparse
 import json
+import io
 import os
 from pathlib import Path
 import shutil
@@ -19,7 +20,8 @@ INPUTS = {
     'fastinsight': ['fastinsight', 'feishu_bot.py', 'scripts', 'assets', 'vendor'],
     'fastlabs': ['server.py', 'agent_adapter.py', 'fastcas_pairing.py', 'feishu_gateway.py',
                  'feishu_help.py', 'web', 'skills', 'schemas', 'vendor'],
-    'fastfigure': ['server-dist', 'dist', 'package.json'],
+    'fastfigure': ['bin/fastfigure', 'dist'],
+    'fastppt': ['bin/fastppt', 'apps/web/dist', 'apps/gateway', 'apps/render-engine', 'packages', 'themes', 'node_modules', 'package.json', 'pnpm-workspace.yaml', 'tsconfig.base.json'],
 }
 
 
@@ -36,6 +38,39 @@ def copy(source, destination):
         shutil.copy2(source, destination, follow_symlinks=True)
 
 
+def package_ppt(source, archive):
+    # Stream large font/resource trees; a second expanded staging copy is not
+    # needed. Link targets retain their exact pnpm version directories.
+    entries, links = {}, []
+    def visit(origin, name):
+        if origin.is_symlink():
+            if origin.exists():
+                target = str(origin.resolve().relative_to(source))
+                links.append({'path': name, 'target': target})
+            return
+        if name in entries:
+            return
+        entries[name] = origin
+        if origin.is_dir():
+            children = list(origin.iterdir())
+            skip = set(ignored(str(origin), [p.name for p in children])) | {'coverage', '.turbo', '.vite', 'tests', 'test', '__tests__', '.fastppt', '.fastppt-data'}
+            for child in children:
+                if child.name not in skip:
+                    visit(child, name + '/' + child.name)
+    for name in INPUTS['fastppt']:
+        visit(source / name, 'dist' if name == 'apps/web/dist' else name)
+    # Workspace test tools are not shipped; omit only links to omitted trees.
+    links = [link for link in links if link['target'] in entries]
+    payload = json.dumps(links).encode()
+    with tarfile.open(archive, 'w:gz', dereference=True, compresslevel=1) as tar:
+        for name, origin in sorted(entries.items()):
+            tar.add(origin, arcname=name, recursive=False)
+        info = tarfile.TarInfo('runtime-links.json')
+        info.size = len(payload)
+        info.mode = 0o600
+        tar.addfile(info, io.BytesIO(payload))
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('app', choices=list(INPUTS))
@@ -44,11 +79,18 @@ def main():
     args = parser.parse_args()
     source = args.source.resolve()
     args.output.mkdir(parents=True, exist_ok=True)
+    if args.app == 'fastppt':
+        archive = args.output / 'release.tar.gz'
+        package_ppt(source, archive)
+        manifest = {'repository': os.environ['GITHUB_REPOSITORY'], 'sha': os.environ['GITHUB_SHA'], 'archive_sha256': sha256_file(archive)}
+        (args.output / 'manifest.json').write_text(json.dumps(manifest) + '\n')
+        print(f'Packaged fastppt: {archive.stat().st_size // 1024**2} MiB')
+        return
     with tempfile.TemporaryDirectory(prefix='fastdeploy-package-') as temporary:
         stage = Path(temporary)
         for name in INPUTS[args.app]:
             copy(source / name, stage / name)
-        if args.app in {'fastwrite', 'fastfigure'}:
+        if args.app == 'fastwrite':
             # Copy the reachable package graph once, without pnpm's cyclic store links.
             modules = source / ('apps/server/node_modules' if args.app == 'fastwrite' else 'node_modules')
             copied = set()
@@ -73,7 +115,7 @@ def main():
             for name in names:
                 package(name, modules.parent)
         archive = args.output / 'release.tar.gz'
-        with tarfile.open(archive, 'w:gz', dereference=True) as tar:
+        with tarfile.open(archive, 'w:gz', dereference=True, compresslevel=1) as tar:
             for item in sorted(stage.iterdir()):
                 tar.add(item, arcname=item.name)
         digest = sha256_file(archive)

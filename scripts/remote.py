@@ -52,7 +52,7 @@ def switch_link(path, target):
     os.replace(temporary, path)
 
 
-def extract_archive(archive, destination, allowed_roots=None):
+def extract_archive(archive, destination, allowed_roots=None, max_expanded_bytes=2 * 1024**3):
     """Reject links, devices, traversal, configuration and writable application data."""
     allowed_roots = set(allowed_roots or ["server", "dist", "node_modules", "package.json", "package-lock.json"])
     seen = set()
@@ -74,7 +74,7 @@ def extract_archive(archive, destination, allowed_roots=None):
             if path.parts[0] not in allowed_roots:
                 raise ValueError("file outside application artifact allowlist")
             total += member.size
-            if total > 2 * 1024**3:
+            if total > max_expanded_bytes:
                 raise ValueError("archive exceeds expanded size limit")
         # All members were inspected before writing anything; links are prohibited.
         for member in members:
@@ -86,6 +86,42 @@ def extract_archive(archive, destination, allowed_roots=None):
                 with tar.extractfile(member) as source, target.open("xb") as output:
                     shutil.copyfileobj(source, output)
                 target.chmod(0o700 if member.mode & 0o111 else 0o600)
+
+
+def restore_runtime_links(destination, manifest):
+    """Recreate pnpm links only after regular archive members have been checked.
+
+    Targets are existing, physical files inside this immutable release. Neither
+    link chains nor writable paths outside the release are accepted.
+    """
+    root = destination.resolve()
+    raw = (root / manifest).read_bytes()
+    if len(raw) > 8 * 1024**2:
+        raise ValueError("runtime link manifest too large")
+    entries = json.loads(raw)
+    if not isinstance(entries, list) or len(entries) > 30000:
+        raise ValueError("invalid runtime link manifest")
+    pending = []
+    seen = set()
+    for entry in entries:
+        paths = []
+        for key in ('path', 'target'):
+            name = PurePosixPath(entry[key])
+            if name.is_absolute() or not name.parts or '..' in name.parts or any(part in {'.git', '.ssh', '.fastdeploy'} or part.startswith('.env') for part in name.parts):
+                raise ValueError("unsafe runtime link")
+            paths.append(root.joinpath(*name.parts))
+        link, target = paths
+        if 'node_modules' not in link.relative_to(root).parts or link in seen or link.exists() or link.is_symlink() or not target.exists():
+            raise ValueError("invalid runtime dependency link")
+        seen.add(link)
+        target.resolve().relative_to(root)
+        pending.append((link, target))
+    for link, target in pending:
+        if any(parent in seen for parent in link.parents) or any(parent in seen for parent in target.parents) or target in seen:
+            raise ValueError("runtime link chain is forbidden")
+    for link, target in pending:
+        link.parent.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(os.path.relpath(target, link.parent))
 
 
 class Systemd:
@@ -398,7 +434,9 @@ class Deployment:
             # A failed attempt remains available for diagnosis; never overwrite it.
             raise DeployError("release directory exists; use a new workflow run")
         destination.mkdir(mode=0o700)
-        extract_archive(archive, destination, self.profile.get("artifact_roots"))
+        extract_archive(archive, destination, self.profile.get("artifact_roots"), self.profile.get("max_expanded_bytes", 2 * 1024**3))
+        if self.profile.get("runtime_links"):
+            restore_runtime_links(destination, self.profile["runtime_links"])
         for path in self.profile["required_files"]:
             if not (destination / path).is_file():
                 raise DeployError("artifact missing a required application file")

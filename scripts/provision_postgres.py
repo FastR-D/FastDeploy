@@ -13,7 +13,7 @@ from postgres_tools import identifier, literal, psql_env, run_psql
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("apps", nargs="+", choices=("fastresearch", "fastread", "fasttask", "fastnews", "fastwrite"))
+    parser.add_argument("apps", nargs="+", choices=("fastresearch", "fastread", "fasttask", "fastnews", "fastwrite", "fastppt", "fastfigure"))
     parser.add_argument("--psql", type=Path, required=True)
     args = parser.parse_args()
     os.umask(0o077)

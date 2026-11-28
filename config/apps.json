@@ -459,48 +459,128 @@
     "legacy_app": "figure",
     "unit": "fastdeploy-fastfigure.service",
     "command": [
-      "/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun",
-      "server-dist/server.mjs"
+      "{release}/bin/fastfigure"
     ],
     "services": [
       {
         "unit": "fastdeploy-fastfigure.service",
         "command": [
-          "/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun",
-          "server-dist/server.mjs"
+          "{release}/bin/fastfigure"
         ]
       }
     ],
     "health_url": "http://127.0.0.1:5178/api/health",
     "artifact_roots": [
-      "server-dist",
-      "dist",
-      "node_modules",
-      "package.json"
+      "bin",
+      "dist"
     ],
     "required_files": [
-      "server-dist/server.mjs",
-      "dist/index.html",
-      "node_modules/zod/package.json"
+      "bin/fastfigure",
+      "dist/index.html"
     ],
     "required_env": [
-      "HOST",
-      "PORT",
-      "FASTFIGURE_LIBRARY_DIR"
+      "FASTFIGURE_PUBLIC_URL",
+      "FASTFIGURE_DATABASE_URL",
+      "FASTFIGURE_FASTCAS_ISSUER",
+      "FASTFIGURE_FASTCAS_CLIENT_ID",
+      "FASTFIGURE_FASTCAS_CLIENT_SECRET",
+      "FASTFIGURE_SESSION_KEY",
+      "FASTFIGURE_HARNESS_URL"
     ],
     "fixed_env": {
-      "HOST": "127.0.0.1",
-      "PORT": "5178",
-      "FASTFIGURE_LIBRARY_DIR": "/home/dev/fastfigure-shared/components"
+      "FASTFIGURE_LISTEN": "127.0.0.1:5178"
     },
     "shared_paths": [],
+    "create_paths": [],
     "runtime_check": [
-      "/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun",
-      "-e",
-      "if (Bun.version !== \"1.4.0\") process.exit(1); const {DatabaseSync}=require(\"node:sqlite\"); const db=new DatabaseSync(\":memory:\"); db.exec(\"CREATE TABLE runtime_check (id INTEGER)\"); db.close()"
+      "/usr/bin/true"
+    ],
+    "release_env": {
+      "FASTFIGURE_STATIC_DIR": "{release}/dist"
+    },
+    "postgres_env": "FASTFIGURE_DATABASE_URL"
+  },
+  "fastppt": {
+    "repository": "FastR-D/FastPPT",
+    "legacy_app": "ppt",
+    "unit": "fastdeploy-fastppt.service",
+    "command": [
+      "{release}/bin/fastppt"
+    ],
+    "services": [
+      {
+        "unit": "fastdeploy-fastppt.service",
+        "command": [
+          "{release}/bin/fastppt"
+        ]
+      }
+    ],
+    "health_url": "http://127.0.0.1:4318/api/health",
+    "artifact_roots": [
+      "bin",
+      "dist",
+      "apps",
+      "packages",
+      "themes",
+      "node_modules",
+      "package.json",
+      "pnpm-workspace.yaml",
+      "runtime-links.json",
+      "tsconfig.base.json"
+    ],
+    "required_files": [
+      "bin/fastppt",
+      "dist/index.html",
+      "apps/render-engine/src/main.ts",
+      "packages/render-worker/dist/control.js"
+    ],
+    "required_env": [
+      "FASTPPT_PUBLIC_URL",
+      "FASTPPT_DATABASE_URL",
+      "FASTPPT_FASTCAS_ISSUER",
+      "FASTPPT_FASTCAS_CLIENT_ID",
+      "FASTPPT_FASTCAS_CLIENT_SECRET",
+      "FASTPPT_SESSION_KEY",
+      "FASTPPT_HARNESS_URL"
+    ],
+    "fixed_env": {
+      "FASTPPT_LISTEN": "127.0.0.1:4318",
+      "FASTPPT_DATA_DIR": "/home/dev/fastppt-shared/data",
+      "FASTPPT_BUN": "/home/dev/.local/share/fastdeploy/runtime/bun-1.4.0/bun",
+      "PLAYWRIGHT_BROWSERS_PATH": "/home/dev/.cache/ms-playwright"
+    },
+    "shared_paths": [
+      "/home/dev/fastppt-shared/data"
     ],
     "create_paths": [
-      "/home/dev/fastfigure-shared/components"
-    ]
+      "/home/dev/fastppt-shared/data"
+    ],
+    "runtime_check": [
+      "/usr/bin/bwrap",
+      "--unshare-user",
+      "--ro-bind",
+      "/usr",
+      "/usr",
+      "--ro-bind",
+      "/bin",
+      "/bin",
+      "--ro-bind",
+      "/lib",
+      "/lib",
+      "--ro-bind-try",
+      "/lib64",
+      "/lib64",
+      "--",
+      "/usr/bin/true"
+    ],
+    "release_env": {
+      "FASTPPT_STATIC_DIR": "{release}/dist",
+      "FASTPPT_RENDER_ROOT": "{release}",
+      "FASTPPT_RENDER_ENTRY": "{release}/apps/render-engine/src/main.ts",
+      "FASTPPT_THEMES_DIR": "{release}/themes"
+    },
+    "postgres_env": "FASTPPT_DATABASE_URL",
+    "runtime_links": "runtime-links.json",
+    "max_expanded_bytes": 8589934592
   }
 }

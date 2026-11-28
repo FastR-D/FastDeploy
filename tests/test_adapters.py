@@ -118,7 +118,7 @@ class GroupTests(unittest.TestCase):
 
     def test_each_profile_has_matching_repository_and_safe_packaging(self):
         profiles = json.loads((ROOT / 'config/apps.json').read_text())
-        self.assertEqual(len(profiles), 9)
+        self.assertEqual(len(profiles), 10)
         self.assertNotIn('fastui', profiles)
         for app, profile in profiles.items():
             self.assertEqual(profile['repository'].split('/')[1].lower(), app)
@@ -230,24 +230,24 @@ class PackageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = root / 'source'; source.mkdir()
-            (source / 'server-dist').mkdir(); (source / 'server-dist/server.mjs').write_text('// server')
-            (source / 'dist').mkdir(); (source / 'dist/index.html').write_text('UI')
+            (source / 'apps/server/dist').mkdir(parents=True); (source / 'apps/server/dist/server.js').write_text('// server')
+            (source / 'apps/web/dist').mkdir(parents=True); (source / 'apps/web/dist/index.html').write_text('UI')
             write_json(source / 'package.json', {'dependencies': {'a': '1'}})
             modules = source / 'node_modules'; modules.mkdir()
-            for name, dependency in [('a', 'b'), ('b', 'a')]:
+            for name, dependency in [('pdfjs-dist', 'b'), ('b', 'pdfjs-dist')]:
                 location = modules / '.pnpm' / name / 'node_modules' / name
                 location.mkdir(parents=True)
                 write_json(location / 'package.json', {'name': name, 'dependencies': {dependency: '1'}})
                 (location / 'index.js').write_text(name)
                 (modules / name).symlink_to(location)
-            for name, dependency in [('a', 'b'), ('b', 'a')]:
+            for name, dependency in [('pdfjs-dist', 'b'), ('b', 'pdfjs-dist')]:
                 (modules / '.pnpm' / name / 'node_modules' / dependency).symlink_to(modules / dependency)
-            environment = dict(os.environ, GITHUB_REPOSITORY='FastR-D/FastFigure', GITHUB_SHA='a'*40)
-            subprocess.run([sys.executable, str(ROOT / 'scripts/package.py'), 'fastfigure', '--source', str(source),
+            environment = dict(os.environ, GITHUB_REPOSITORY='FastR-D/FastWrite', GITHUB_SHA='a'*40)
+            subprocess.run([sys.executable, str(ROOT / 'scripts/package.py'), 'fastwrite', '--source', str(source),
                 '--output', str(root / 'out')], env=environment, check=True, capture_output=True)
             with tarfile.open(root / 'out/release.tar.gz') as archive:
                 names = archive.getnames()
-                self.assertIn('node_modules/a/index.js', names)
+                self.assertIn('node_modules/pdfjs-dist/index.js', names)
                 self.assertIn('node_modules/b/index.js', names)
                 self.assertFalse(any(member.issym() or member.islnk() or '.pnpm' in member.name for member in archive.getmembers()))
 
